@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import CredentialsPage from '@/pages/credentials';
 import NotFound from '@/pages/not-found';
 import WorkflowEditorPage from '@/pages/workflow-editor';
 import WorkflowsListPage from '@/pages/workflows-list';
@@ -12,6 +13,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={WorkflowsListPage} />
+      <Route path="/credentials" component={CredentialsPage} />
       <Route path="/workflows/:id" component={WorkflowEditorPage} />
       <Route component={NotFound} />
     </Switch>

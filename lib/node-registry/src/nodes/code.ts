@@ -49,6 +49,17 @@ async function runCode(
   const done = Promise.race([
     fn(input),
     new Promise<never>((_, reject) => {
+      // Check already-aborted signals synchronously before installing listeners
+      // — addEventListener's "abort" event only fires on *transition*, not
+      // when the signal is already in the aborted state.
+      if (signal.aborted) {
+        reject(signal.reason instanceof Error ? signal.reason : new Error("Execution aborted"));
+        return;
+      }
+      if (ownTimeout.aborted) {
+        reject(new NodeTimeoutError(`Code node timed out after ${timeoutMs}ms`));
+        return;
+      }
       function onAbort(this: AbortSignal) {
         if (this === ownTimeout) {
           reject(new NodeTimeoutError(`Code node timed out after ${timeoutMs}ms`));

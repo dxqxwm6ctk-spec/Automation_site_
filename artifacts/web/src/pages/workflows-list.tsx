@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { MoreVertical, Plus, Search, Trash2, Workflow as WorkflowIcon } from "lucide-react";
+import { KeyRound, MoreVertical, Plus, Search, Trash2, Workflow as WorkflowIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListWorkflowsQueryKey,
@@ -90,6 +90,13 @@ export default function WorkflowsListPage() {
             <h1 className="text-xl font-semibold text-card-foreground">FlowForge</h1>
             <p className="text-sm text-muted-foreground">Build and manage your automations</p>
           </div>
+          <div className="flex items-center gap-2">
+            <Link href="/credentials">
+              <Button variant="outline" className="gap-1.5" data-testid="button-nav-credentials">
+                <KeyRound className="h-4 w-4" />
+                Credentials
+              </Button>
+            </Link>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-1.5" data-testid="button-new-workflow">
@@ -123,6 +130,7 @@ export default function WorkflowsListPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </header>
 

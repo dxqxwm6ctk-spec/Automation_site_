@@ -7,6 +7,7 @@ import {
   webhookResponseModes,
   type FieldError,
 } from "@workspace/node-registry";
+import { useListCredentials } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,6 +145,15 @@ function NodeInspectorContent({
     [node.data.nodeType, config],
   );
   const errorFor = (field: string) => messageForField(validation.errors, field);
+
+  // Load credentials only when inspecting an http_request node
+  const credentialsQuery = useListCredentials({
+    query: {
+      enabled: node.data.nodeType === "http_request",
+      queryKey: ["/api/v1/credentials"] as const,
+    },
+  });
+  const credentials = credentialsQuery.data?.credentials ?? [];
 
   function patchConfig(patch: Record<string, unknown>) {
     onChangeConfig(node.id, { ...config, ...patch });
@@ -312,6 +322,7 @@ function NodeInspectorContent({
                 onValueChange={(value) => {
                   if (value === "basic") patchConfig({ auth: { type: "basic", username: "", password: "" } });
                   else if (value === "bearer") patchConfig({ auth: { type: "bearer", token: "" } });
+                  else if (value === "credential") patchConfig({ auth: { type: "credential", credentialId: "" } });
                   else patchConfig({ auth: { type: "none" } });
                 }}
               >
@@ -322,6 +333,7 @@ function NodeInspectorContent({
                   <SelectItem value="none">None</SelectItem>
                   <SelectItem value="basic">Basic</SelectItem>
                   <SelectItem value="bearer">Bearer token</SelectItem>
+                  <SelectItem value="credential">Saved credential</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -365,6 +377,38 @@ function NodeInspectorContent({
                 />
                 {errorFor("auth.token") && (
                   <p className="text-xs text-destructive">{errorFor("auth.token")}</p>
+                )}
+              </div>
+            )}
+            {authType === "credential" && (
+              <div className="space-y-1.5 rounded-md border p-2.5">
+                <Label htmlFor="node-auth-credential">Credential</Label>
+                {credentialsQuery.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading credentials…</p>
+                ) : credentialsQuery.isError ? (
+                  <p className="text-xs text-destructive">Failed to load credentials</p>
+                ) : credentials.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No credentials saved yet. Add one on the{" "}
+                    <a href="/credentials" className="underline">Credentials page</a>.
+                  </p>
+                ) : (
+                  <Select
+                    value={(auth.credentialId as string) ?? ""}
+                    onValueChange={(value) => patchAuth({ credentialId: value })}
+                  >
+                    <SelectTrigger id="node-auth-credential" data-testid="select-http-auth-credential">
+                      <SelectValue placeholder="Select a credential…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {credentials.map((cred) => (
+                        <SelectItem key={cred.id} value={cred.id}>
+                          {cred.name}
+                          <span className="ml-1.5 text-xs text-muted-foreground">({cred.credentialType})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             )}

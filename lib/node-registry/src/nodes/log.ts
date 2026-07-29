@@ -56,9 +56,10 @@ export const logNode: NodeDefinition<LogConfig> = {
   defaultConfig: { message: "{{$input}}", level: "info" },
   execute: async ({ config, input }) => {
     const message = interpolate(config.message, input);
-    // Write to the standard Node.js console so the message appears in the
-    // API server's process log and the execution_logs.output captures it.
-    console[config.level](`[FlowForge Log] ${message}`);
+    // The rendered message and level are captured in the output so they appear
+    // in the execution_logs row. Actual process-level logging is the engine's
+    // responsibility (nodeRunner.ts) — this package is shared with the browser
+    // and must not call console directly.
     return { output: { message, level: config.level, input } };
   },
 };
