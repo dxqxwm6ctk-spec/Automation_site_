@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, ChevronDown, History, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ChevronDown, History, Loader2, Play, Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetWorkflowQueryKey,
   getListWorkflowVersionsQueryKey,
+  useExecuteWorkflow,
   useListWorkflowVersions,
   useRestoreWorkflowVersion,
   useUpdateWorkflow,
@@ -20,8 +21,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { ExecutionLogPanel } from "@/features/workflow-canvas/ExecutionLogPanel";
 import { NodeInspector } from "@/features/workflow-canvas/NodeInspector";
 import { NodePalette } from "@/features/workflow-canvas/NodePalette";
+import { useExecutionOverlay } from "@/features/workflow-canvas/useExecutionOverlay";
 import { useWorkflowEditor } from "@/features/workflow-canvas/useWorkflowEditor";
 import { WorkflowCanvasView } from "@/features/workflow-canvas/WorkflowCanvasView";
 
@@ -41,7 +44,17 @@ export default function WorkflowEditorPage() {
   });
   const restoreVersion = useRestoreWorkflowVersion();
   const updateWorkflow = useUpdateWorkflow();
+  const executeWorkflow = useExecuteWorkflow();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+
+  // ── Execution overlay ──────────────────────────────────────────────────────
+  const [executionId, setExecutionId] = useState<string | null>(null);
+  const overlay = useExecutionOverlay(executionId);
+
+  const nodeLabels = useMemo(
+    () => new Map(editor.nodes.map((n) => [n.id, n.data.label])),
+    [editor.nodes],
+  );
 
   if (!workflowId) {
     return null;
@@ -98,6 +111,18 @@ export default function WorkflowEditorPage() {
         description: error instanceof Error ? error.message : "Something went wrong.",
         variant: "destructive",
       });
+    }
+  }
+
+  async function handleRun() {
+    try {
+      // Clear previous overlay state before starting a new run.
+      overlay.clear();
+      setExecutionId(null);
+      const result = await executeWorkflow.mutateAsync({ workflowId });
+      setExecutionId(result.execution.id);
+    } catch {
+      toast({ title: "Failed to start workflow", variant: "destructive" });
     }
   }
 
@@ -173,6 +198,7 @@ export default function WorkflowEditorPage() {
             onClick={handleSave}
             disabled={!editor.isDirty || editor.isSaving}
             size="sm"
+            variant="outline"
             className="gap-1.5"
             data-testid="button-save-workflow"
           >
@@ -183,21 +209,45 @@ export default function WorkflowEditorPage() {
             )}
             Save
           </Button>
+          <Button
+            onClick={handleRun}
+            disabled={executeWorkflow.isPending || editor.isDirty}
+            size="sm"
+            className="gap-1.5"
+            data-testid="button-run-workflow"
+            title={editor.isDirty ? "Save your changes before running" : "Run workflow"}
+          >
+            {executeWorkflow.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Run
+          </Button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         <NodePalette />
-        <WorkflowCanvasView
-          nodes={editor.nodes}
-          edges={editor.edges}
-          onNodesChange={editor.onNodesChange}
-          onEdgesChange={editor.onEdgesChange}
-          onConnect={editor.onConnect}
-          onAddNode={editor.addNode}
-          onNodeClick={editor.selectNode}
-          onPaneClick={() => editor.selectNode(null)}
-        />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <WorkflowCanvasView
+            nodes={editor.nodes}
+            edges={editor.edges}
+            onNodesChange={editor.onNodesChange}
+            onEdgesChange={editor.onEdgesChange}
+            onConnect={editor.onConnect}
+            onAddNode={editor.addNode}
+            onNodeClick={editor.selectNode}
+            onPaneClick={() => editor.selectNode(null)}
+            nodeStates={overlay.nodeStates}
+          />
+          <ExecutionLogPanel
+            executionId={executionId}
+            overallStatus={overlay.overallStatus}
+            nodeStates={overlay.nodeStates}
+            nodeLabels={nodeLabels}
+          />
+        </div>
         <NodeInspector
           node={editor.selectedNode}
           onChangeLabel={editor.updateNodeLabel}

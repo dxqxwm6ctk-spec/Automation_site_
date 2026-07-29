@@ -21,6 +21,7 @@ import { db, executionLogs, executions, type Execution } from "@workspace/db";
 import type { Graph, GraphNode } from "../lib/graph";
 import type { ExecutionPlan } from "./graphBuilder";
 import { runNode } from "./nodeRunner";
+import { emitExecutionStarted, emitExecutionDone } from "../realtime/socket";
 
 /** 5 minutes — the execution-level timeout backstop (docs/07-workflow-engine.md "Timeouts"). Individual node types may impose their own, shorter timeout (e.g. http_request); this is the ceiling for the whole run. */
 export const EXECUTION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -216,6 +217,7 @@ export async function runExecution(
     .update(executions)
     .set({ status: "running", startedAt })
     .where(and(eq(executions.id, executionId), eq(executions.status, "pending")));
+  emitExecutionStarted({ executionId });
 
   const timeoutTimer = setTimeout(() => {
     controller.abort(new ExecutionTimeoutError());
@@ -224,12 +226,14 @@ export async function runExecution(
   try {
     const outcomes = await walkGraph(executionId, plan, triggerPayload, controller);
     const finishedAt = new Date();
+    const output = computeFinalOutput(plan, outcomes);
     await finalize(executionId, {
       status: "success",
-      output: computeFinalOutput(plan, outcomes),
+      output,
       finishedAt,
       durationMs: finishedAt.getTime() - startedAt.getTime(),
     });
+    emitExecutionDone({ executionId, status: "success", output });
   } catch (err) {
     const finishedAt = new Date();
     const durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -241,6 +245,7 @@ export async function runExecution(
         finishedAt,
         durationMs,
       });
+      emitExecutionDone({ executionId, status: "timeout", error: { message: reason.message } });
     } else if (reason instanceof ExecutionCancelledError) {
       await finalize(executionId, {
         status: "cancelled",
@@ -248,9 +253,11 @@ export async function runExecution(
         finishedAt,
         durationMs,
       });
+      emitExecutionDone({ executionId, status: "cancelled", error: { message: reason.message } });
     } else {
       const message = err instanceof Error ? err.message : String(err);
       await finalize(executionId, { status: "error", error: { message }, finishedAt, durationMs });
+      emitExecutionDone({ executionId, status: "error", error: { message } });
     }
   } finally {
     clearTimeout(timeoutTimer);

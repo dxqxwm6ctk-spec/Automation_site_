@@ -55,21 +55,26 @@ export async function runNode(
     })
     .returning({ id: executionLogs.id });
 
+  emitNodeStart({ executionId, nodeKey: node.key });
+
   try {
     const result = await definition.execute({ config, input, signal });
     const finishedAt = new Date();
+    const durationMs = finishedAt.getTime() - startedAt.getTime();
     await db
       .update(executionLogs)
       .set({
         status: "success",
         output: (result.output ?? null) as object | null,
         finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        durationMs,
       })
       .where(eq(executionLogs.id, log.id));
+    emitNodeDone({ executionId, nodeKey: node.key, status: "success", durationMs, output: result.output });
     return { output: result.output, branch: result.branch };
   } catch (err) {
     const finishedAt = new Date();
+    const durationMs = finishedAt.getTime() - startedAt.getTime();
     const message = err instanceof Error ? err.message : String(err);
     await db
       .update(executionLogs)
@@ -77,9 +82,10 @@ export async function runNode(
         status: "error",
         error: { message, name: err instanceof Error ? err.name : "Error" },
         finishedAt,
-        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        durationMs,
       })
       .where(eq(executionLogs.id, log.id));
+    emitNodeDone({ executionId, nodeKey: node.key, status: "error", durationMs, error: { message } });
     throw err instanceof Error ? err : new Error(message);
   }
 }

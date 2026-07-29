@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { CanvasNode } from "./CanvasNode";
 import { WORKFLOW_NODE_DND_TYPE } from "./NodePalette";
 import { NODE_TYPE_LIST, type NodeTypeId } from "./node-registry";
+import type { ExecutionOverlayState } from "./useExecutionOverlay";
 import type { FlowNode } from "./types";
 
 interface WorkflowCanvasViewProps {
@@ -26,6 +27,8 @@ interface WorkflowCanvasViewProps {
   onAddNode: (type: NodeTypeId, position: { x: number; y: number }) => void;
   onNodeClick: (nodeId: string) => void;
   onPaneClick: () => void;
+  /** Live per-node execution state — injected into each node's data for overlay rendering. */
+  nodeStates?: ExecutionOverlayState;
 }
 
 function WorkflowCanvasInner({
@@ -37,6 +40,7 @@ function WorkflowCanvasInner({
   onAddNode,
   onNodeClick,
   onPaneClick,
+  nodeStates,
 }: WorkflowCanvasViewProps) {
   const { screenToFlowPosition } = useReactFlow();
 
@@ -46,6 +50,41 @@ function WorkflowCanvasInner({
   const nodeTypes = useMemo(
     () => Object.fromEntries(NODE_TYPE_LIST.map((type) => [type, CanvasNode])),
     [],
+  );
+
+  // Inject live execution state into each node's data so CanvasNode can render
+  // the overlay without a context. Memoised on nodeStates reference so a new
+  // Map only triggers a re-render when execution events arrive.
+  const overlaidNodes = useMemo(
+    () =>
+      nodeStates && nodeStates.size > 0
+        ? nodes.map((n) => {
+            const execState = nodeStates.get(n.id);
+            if (execState === n.data.executionState) return n;
+            return { ...n, data: { ...n.data, executionState: execState } };
+          })
+        : nodes.map((n) =>
+            n.data.executionState !== undefined
+              ? { ...n, data: { ...n.data, executionState: undefined } }
+              : n,
+          ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, nodeStates],
+  );
+
+  // Animate edges whose source node is currently running so the active path
+  // is visually obvious without any extra components.
+  const animatedEdges = useMemo(
+    () =>
+      nodeStates && nodeStates.size > 0
+        ? edges.map((e) => {
+            const shouldAnimate = nodeStates.get(e.source) === "running";
+            if (e.animated === shouldAnimate) return e;
+            return { ...e, animated: shouldAnimate };
+          })
+        : edges.map((e) => (e.animated ? { ...e, animated: false } : e)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [edges, nodeStates],
   );
 
   const handleDrop = useCallback(
@@ -67,8 +106,8 @@ function WorkflowCanvasInner({
   return (
     <div className="relative flex-1" data-testid="canvas-workflow">
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={overlaidNodes}
+        edges={animatedEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}

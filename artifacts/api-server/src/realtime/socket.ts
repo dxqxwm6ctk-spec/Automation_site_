@@ -55,6 +55,14 @@ export function getIO(): Server | null {
 
 // ─── Typed event emitters ─────────────────────────────────────────────────────
 
+export interface ExecutionStartedEvent {
+  executionId: string;
+}
+
+export function emitExecutionStarted(event: ExecutionStartedEvent): void {
+  _io?.to(`execution:${event.executionId}`).emit("execution:started", event);
+}
+
 export interface ExecutionNodeStartEvent {
   executionId: string;
   nodeKey: string;

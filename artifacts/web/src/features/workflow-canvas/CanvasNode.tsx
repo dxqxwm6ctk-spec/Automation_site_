@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { CheckCircle2, Loader2, SkipForward, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_COLOR_CLASSES, NODE_DEFINITIONS } from "./node-registry";
 import type { FlowNode } from "./types";
@@ -7,19 +8,37 @@ import type { FlowNode } from "./types";
 const HANDLE_CLASSES =
   "!h-3 !w-3 !border-2 !border-background !bg-foreground/50 hover:!bg-primary";
 
+/** Ring + border applied on top of the node's normal colour when it has an execution state. */
+const EXECUTION_RING: Record<string, string> = {
+  running: "ring-2 ring-amber-400 ring-offset-2 ring-offset-background animate-pulse",
+  success: "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
+  error: "ring-2 ring-destructive ring-offset-2 ring-offset-background",
+  skipped: "",
+};
+
+const EXECUTION_BADGE: Record<string, React.ReactNode> = {
+  running: <Loader2 className="h-3 w-3 animate-spin text-amber-500" />,
+  success: <CheckCircle2 className="h-3 w-3 text-emerald-500" />,
+  error: <XCircle className="h-3 w-3 text-destructive" />,
+  skipped: <SkipForward className="h-3 w-3 text-muted-foreground" />,
+};
+
 function CanvasNodeComponent({ data, selected }: NodeProps<FlowNode>) {
   const definition = NODE_DEFINITIONS[data.nodeType];
   const colors = NODE_COLOR_CLASSES[data.nodeType];
   const Icon = definition.icon;
   const inputCount = definition.inputs.length;
   const outputCount = definition.outputs.length;
+  const execState = data.executionState;
 
   return (
     <div
       className={cn(
-        "min-w-[190px] rounded-lg border-2 bg-card shadow-sm",
+        "min-w-[190px] rounded-lg border-2 bg-card shadow-sm transition-opacity",
         colors.border,
         selected && cn("shadow-md ring-2 ring-offset-2 ring-offset-background", colors.ring),
+        execState && EXECUTION_RING[execState],
+        execState === "skipped" && "opacity-40",
       )}
       data-testid={`node-canvas-${data.nodeType}`}
     >
@@ -50,7 +69,7 @@ function CanvasNodeComponent({ data, selected }: NodeProps<FlowNode>) {
         </div>
       )}
 
-      <div className="flex items-center gap-2 px-3 py-2.5">
+      <div className="relative flex items-center gap-2 px-3 py-2.5">
         <span
           className={cn(
             "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
@@ -63,6 +82,11 @@ function CanvasNodeComponent({ data, selected }: NodeProps<FlowNode>) {
           <p className="truncate text-sm font-medium text-card-foreground">{data.label}</p>
           <p className="truncate text-xs text-muted-foreground">{definition.label}</p>
         </div>
+        {execState && (
+          <span className="shrink-0" data-testid={`node-exec-badge-${execState}`}>
+            {EXECUTION_BADGE[execState]}
+          </span>
+        )}
       </div>
 
       {outputCount > 0 && (

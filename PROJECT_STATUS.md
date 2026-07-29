@@ -1,10 +1,10 @@
 # FlowForge — Project Status
 
-_Last updated: 2026-07-29 (Phase 1.4 complete)_
+_Last updated: 2026-07-29 (Phase 1.6 complete)_
 
 ## Where we are
 
-**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): Phase 1.1 (Workflow CRUD + Versioning) is complete, Phase 1.2 (Visual Canvas) is substantially implemented, and Phase 1.3 (Shared Node Registry & Integration Foundation) is complete for its scoped node set** — `start`, `webhook_trigger`, `http_request`, `delay`, `if`, `end` are defined once in a shared package and used identically by the API's validation and the canvas's palette/inspector. This is narrower than `docs/06-implementation-phases.md`'s "Phase 1.3 — Core Nodes", which additionally wants Schedule Trigger, Code, Set Variable, Log, and Loop nodes — those remain outstanding (see "Not started"). No execution engine or webhooks yet. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
+**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): Phases 1.1–1.4 are complete, and Phase 1.6 (Live Execution Overlay) is complete.** The core workflow loop now works end-to-end: build a graph on the canvas, press Run, and watch each node highlight in real time as it executes — amber pulse while running, green on success, red on failure — with animated edges tracing the live path and an execution log panel beneath the canvas. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
 
 ### Done
 
@@ -62,12 +62,26 @@ _Last updated: 2026-07-29 (Phase 1.4 complete)_
   - `lib/api-zod/src/index.ts` duplicate-export ambiguity fixed (`ExecuteWorkflowBody` declared in both generated sources; explicit tiebreak added).
   - 16 new Vitest+Supertest tests in `executions.test.ts` covering all 4 endpoints, engine happy paths (instant graph, if-node branching), cancel, and 404/409 error paths. **87 tests pass across the whole repo** (19 node-registry + 7 web + 61 api-server across 4 test files).
 
+- **Phase 1.6 — Live Execution Overlay is complete.**
+  - **Socket.io server** (`artifacts/api-server/src/realtime/socket.ts`): singleton attached to the raw `http.Server` in `index.ts` before `.listen()`. Room-based subscription model: `execution:<id>`. Path is `/api/socket.io` to work through the Replit proxy.
+  - **Event emission from the engine:**
+    - `execution:started` — emitted from `executionEngine.ts` immediately after the DB row is flipped to `"running"`.
+    - `execution:node:start` — emitted from `nodeRunner.ts` after the `execution_logs` insert and before `definition.execute()`.
+    - `execution:node:done` — emitted from `nodeRunner.ts` after the DB update in both the success path (`status: "success"`, `durationMs`, `output`) and the error path (`status: "error"`, `durationMs`, `error.message`).
+    - `execution:done` — emitted from `executionEngine.ts` in all four terminal branches: `"success"` (with final output), `"timeout"`, `"cancelled"`, `"error"` (each with the error message).
+  - **Frontend socket client** (`artifacts/web/src/lib/socket.ts`): singleton with `autoConnect: false`, path `/api/socket.io`, WebSocket + polling transports.
+  - **`useExecutionOverlay` hook** (`artifacts/web/src/features/workflow-canvas/useExecutionOverlay.ts`): subscribes to the execution's room on mount, listens to the three canvas events, maintains a `Map<nodeKey, NodeExecutionState>` and an `OverallStatus`. Cleans up on unmount.
+  - **`CanvasNode` overlay** (`artifacts/web/src/features/workflow-canvas/CanvasNode.tsx`): reads `data.executionState` set by `WorkflowCanvasView`. Visual states: `running` → amber pulsing ring + spinning `Loader2` badge; `success` → emerald ring + `CheckCircle2`; `error` → destructive ring + `XCircle`; `skipped` → 40 % opacity + `SkipForward`.
+  - **`WorkflowCanvasView` overlay injection** (`artifacts/web/src/features/workflow-canvas/WorkflowCanvasView.tsx`): accepts `nodeStates?: ExecutionOverlayState`; produces `overlaidNodes` (injects `executionState` into each node's `data`) and `animatedEdges` (sets `animated: true` on edges whose `source` is `"running"`).
+  - **`ExecutionLogPanel`** (`artifacts/web/src/features/workflow-canvas/ExecutionLogPanel.tsx`): horizontal strip beneath the canvas showing overall status and per-node status chips (icon + truncated label). Collapses when idle with no executionId.
+  - **Workflow editor wiring** (`artifacts/web/src/pages/workflow-editor.tsx`): **Run button** in the header (disabled while the workflow has unsaved changes or while the request is in-flight). Clicking Run clears the previous overlay, calls `POST /execute`, and passes the returned `execution.id` to `useExecutionOverlay`. `nodeStates` from the hook flows to both `WorkflowCanvasView` and `ExecutionLogPanel`.
+
 ### Not started
 - Remaining MVP node types beyond Phase 1.3's scoped set — **Schedule Trigger, Code (JS sandbox / `isolated-vm`), Set Variable, Log, Loop** — needed to reach the full node list in `replit.md`'s Product section and `docs/06-implementation-phases.md`'s Phase 1.3 (Core Nodes). The registry architecture and validation pipeline are already in place; adding a node type is now just a new file in `lib/node-registry/src/nodes/` plus a palette icon/color mapping.
 - Redis + BullMQ queue infrastructure (no `REDIS_URL` yet) — also needed before `/api/ready` can check Redis for real
 - `ENCRYPTION_KEY` secret (needed once the credential store is built — Phase 1.7)
-- Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search (categories now exist — see Phase 1.3 above), and keyboard shortcuts beyond React Flow's built-in pan/zoom (copy/paste, select-all, delete-key are not wired up)
-- Phase 1.5 and everything else in Milestone 1 onward
+- Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search, and keyboard shortcuts beyond React Flow's built-in pan/zoom
+- Phase 1.5 (Webhook Trigger infrastructure), Phase 1.7 (Credential Store), and everything else in Milestone 1 onward
 
 ### Replit-specific notes
 - `docs/04-folder-structure.md` describes the target **production/self-hosted** layout (`apps/`, `packages/`, `infra/` with Docker Compose, Kubernetes, Helm). On Replit this project instead uses the pnpm-workspace template's `artifacts/` + `lib/` layout (see `replit.md`). Same architecture, different folder names — don't try to reconcile them literally.
@@ -87,9 +101,10 @@ Per `docs/01-architecture.md`, `docs/02-database-schema.md`, and `docs/03-api-sp
 
 ## Next phase
 
-**Phase 1.1 — Workflow CRUD + Versioning is complete. Phase 1.2 — Visual Canvas is substantially implemented. Phase 1.3 — Shared Node Registry & Integration Foundation is complete for its scoped node set** (see Done/Not started above for exactly what's covered and what's left).
+**Phases 1.1–1.4 and 1.6 are complete.** The end-to-end run loop works: create a workflow, add nodes, save, hit Run, and watch the overlay update in real time.
 
 **Next, in phase order per `docs/06-implementation-phases.md`:**
-1. Close out the remaining Phase 1.2 gaps (undo/redo, auto-layout) — optional polish, not blocking.
-2. **Finish Phase 1.3 / Core Nodes**: add the remaining MVP node types (Schedule Trigger, Code, Set Variable, Log, Loop) to `lib/node-registry/` using the same pattern as the existing six node types — no new architecture needed, just new node definitions plus matching `NodeInspector` config editors and palette icon/color entries.
-3. **Phase 1.4 — Execution Engine**: `POST /api/v1/workflows/:id/execute`, `GET /api/v1/executions`, `GET /api/v1/executions/:id`, `POST /api/v1/executions/:id/cancel`. Requires Redis + BullMQ queue infrastructure (Phase 0.4, skipped until needed) and the worker process artifact. Scope per the phase doc: DAG execution, node dispatch, execution record tracking, and node-level logs — using the existing `executions` and `execution_logs` tables. Tracked separately as an open project task.
+1. **Finish Phase 1.3 / Core Nodes** (already partially done — `schedule_trigger`, `code`, `set_variable`, `loop`, `log` nodes need `execute` implementations and `NodeInspector` config editors in addition to what was done in Milestone 1 Task #3).
+2. **Phase 1.5 — Webhook Trigger infrastructure**: inbound webhook endpoint, `webhooks` table wiring, and the ability to trigger a workflow via an external HTTP POST.
+3. **Phase 1.7 — Credential Store**: AES-256-GCM encryption, `ENCRYPTION_KEY` secret, credential CRUD endpoints, and injection into node execution context.
+4. Close out remaining Phase 1.2 polish (undo/redo, auto-layout, keyboard shortcuts) — not blocking.
