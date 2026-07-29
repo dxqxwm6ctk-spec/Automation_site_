@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { errorHandler, notFoundHandler } from "./errorHandler";
 import { AppError } from "../lib/errors";
 

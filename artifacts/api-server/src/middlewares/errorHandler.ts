@@ -1,5 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler, Response } from "express";
-import { ZodError } from "zod";
+import { ZodError } from "zod/v4";
 import { AppError } from "../lib/errors";
 
 interface ProblemJsonBody {
