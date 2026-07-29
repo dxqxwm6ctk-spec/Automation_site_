@@ -32,7 +32,7 @@ export interface Workflow {
   /** @nullable */
   activeVersionId: string | null;
   /**
-     * Reserved for the execution engine (Phase 1.4). Always null for now.
+     * When this workflow's most recent execution was created. Null if it has never run.
      * @nullable
      */
   lastExecutionAt?: string | null;
@@ -148,6 +148,100 @@ export interface WorkflowVersionSummary {
   createdAt: string;
 }
 
+export type ExecutionStatus = typeof ExecutionStatus[keyof typeof ExecutionStatus];
+
+
+export const ExecutionStatus = {
+  pending: 'pending',
+  running: 'running',
+  success: 'success',
+  error: 'error',
+  cancelled: 'cancelled',
+  timeout: 'timeout',
+} as const;
+
+export type ExecutionTriggerType = typeof ExecutionTriggerType[keyof typeof ExecutionTriggerType];
+
+
+export const ExecutionTriggerType = {
+  manual: 'manual',
+  webhook: 'webhook',
+  schedule: 'schedule',
+  api: 'api',
+} as const;
+
+/**
+ * A single run of a workflow.
+ */
+export interface Execution {
+  id: string;
+  workflowId: string;
+  versionId: string;
+  status: ExecutionStatus;
+  triggerType: ExecutionTriggerType;
+  /** The input the entry node ran with. Arbitrary JSON, or null. */
+  triggerPayload: unknown;
+  /** The workflow's final output (its terminal node's output, or one merged object keyed by node if it has several). Null until the execution finishes. */
+  output: unknown;
+  /** Structured error detail if the execution didn't succeed. Null otherwise. */
+  error: unknown;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  finishedAt: string | null;
+  /** @nullable */
+  durationMs: number | null;
+  retryCount: number;
+  /**
+     * Reserved for sub-workflow calls. Always null for now.
+     * @nullable
+     */
+  parentId: string | null;
+  createdAt: string;
+}
+
+export type ExecutionLogStatus = typeof ExecutionLogStatus[keyof typeof ExecutionLogStatus];
+
+
+export const ExecutionLogStatus = {
+  pending: 'pending',
+  running: 'running',
+  success: 'success',
+  error: 'error',
+  skipped: 'skipped',
+} as const;
+
+/**
+ * A single node's run within an execution.
+ */
+export interface ExecutionLog {
+  id: string;
+  executionId: string;
+  /** The graph node's `key` this log entry belongs to. */
+  nodeKey: string;
+  status: ExecutionLogStatus;
+  /** The value passed into this node. Arbitrary JSON, or null. */
+  input: unknown;
+  /** The value this node produced. Null unless status is "success". */
+  output: unknown;
+  /** Structured error detail if this node failed. Null otherwise. */
+  error: unknown;
+  /**
+     * Reserved for offloading large (>100 KB) payloads to object storage. Always null for now.
+     * @nullable
+     */
+  storageRef: string | null;
+  /** @nullable */
+  durationMs: number | null;
+  /** Always 1 — retries are not implemented yet. */
+  attempt: number;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  finishedAt: string | null;
+  createdAt: string;
+}
+
 export type ListWorkflowsParams = {
 /**
  * Case-insensitive substring match on workflow name.
@@ -205,5 +299,51 @@ export type ListWorkflowVersions200 = {
 
 export type RestoreWorkflowVersion200 = {
   workflow: Workflow;
+};
+
+export type ExecuteWorkflowBody = {
+  /** Arbitrary JSON passed as the input to the workflow's entry node. */
+  triggerPayload?: unknown;
+};
+
+export type ExecuteWorkflow202 = {
+  execution: Execution;
+};
+
+export type ListExecutionsParams = {
+/**
+ * Only return executions for this workflow.
+ */
+workflowId?: string;
+/**
+ * Filter by execution status.
+ */
+status?: ExecutionStatus;
+/**
+ * Opaque pagination cursor from a previous response's nextCursor.
+ */
+after?: string;
+/**
+ * Max results per page (1-100).
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListExecutions200 = {
+  executions: Execution[];
+  /** @nullable */
+  nextCursor: string | null;
+  total: number;
+};
+
+export type GetExecution200 = {
+  execution: Execution;
+  logs: ExecutionLog[];
+};
+
+export type CancelExecution200 = {
+  execution: Execution;
 };
 

@@ -20,9 +20,15 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CancelExecution200,
   CreateWorkflow201,
+  ExecuteWorkflow202,
+  ExecuteWorkflowBody,
+  GetExecution200,
   GetWorkflow200,
   HealthStatus,
+  ListExecutions200,
+  ListExecutionsParams,
   ListWorkflowVersions200,
   ListWorkflows200,
   ListWorkflowsParams,
@@ -829,5 +835,313 @@ export const useRestoreWorkflowVersion = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRestoreWorkflowVersionMutationOptions(options));
+    }
+
+export const getExecuteWorkflowUrl = (workflowId: string,) => {
+
+
+
+
+  return `/api/v1/workflows/${workflowId}/execute`
+}
+
+/**
+ * Runs the workflow's active version. Starts the run asynchronously and returns immediately with a "pending" execution — poll GET /v1/executions/{executionId} for progress and the final result.
+ * @summary Execute a workflow
+ */
+export const executeWorkflow = async (workflowId: string,
+    executeWorkflowBody?: ExecuteWorkflowBody, options?: Parameters<typeof customFetch>[1]): Promise<ExecuteWorkflow202> => {
+
+  return customFetch<ExecuteWorkflow202>(getExecuteWorkflowUrl(workflowId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(executeWorkflowBody)
+  }
+);}
+
+
+
+
+
+export const getExecuteWorkflowMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeWorkflow>>, TError,{workflowId: string;data?: BodyType<ExecuteWorkflowBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof executeWorkflow>>, TError,{workflowId: string;data?: BodyType<ExecuteWorkflowBody>}, TContext> => {
+
+const mutationKey = ['executeWorkflow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof executeWorkflow>>, {workflowId: string;data?: BodyType<ExecuteWorkflowBody>}> = (props) => {
+          const {workflowId,data} = props ?? {};
+
+          return  executeWorkflow(workflowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExecuteWorkflowMutationResult = NonNullable<Awaited<ReturnType<typeof executeWorkflow>>>
+    export type ExecuteWorkflowMutationBody = BodyType<ExecuteWorkflowBody> | undefined
+    export type ExecuteWorkflowMutationError = ErrorType<void>
+
+    /**
+ * @summary Execute a workflow
+ */
+export const useExecuteWorkflow = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof executeWorkflow>>, TError,{workflowId: string;data?: BodyType<ExecuteWorkflowBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof executeWorkflow>>,
+        TError,
+        {workflowId: string;data?: BodyType<ExecuteWorkflowBody>},
+        TContext
+      > => {
+      return useMutation(getExecuteWorkflowMutationOptions(options));
+    }
+
+export const getListExecutionsUrl = (params?: ListExecutionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/executions?${stringifiedParams}` : `/api/v1/executions`
+}
+
+/**
+ * Returns a page of executions, most recently created first.
+ * @summary List executions
+ */
+export const listExecutions = async (params?: ListExecutionsParams, options?: Parameters<typeof customFetch>[1]): Promise<ListExecutions200> => {
+
+  return customFetch<ListExecutions200>(getListExecutionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExecutionsQueryKey = (params?: ListExecutionsParams,) => {
+    return [
+    `/api/v1/executions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListExecutionsQueryOptions = <TData = Awaited<ReturnType<typeof listExecutions>>, TError = ErrorType<unknown>>(params?: ListExecutionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExecutions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExecutionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExecutions>>> = ({ signal }) => listExecutions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExecutions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExecutionsQueryResult = NonNullable<Awaited<ReturnType<typeof listExecutions>>>
+export type ListExecutionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List executions
+ */
+
+export function useListExecutions<TData = Awaited<ReturnType<typeof listExecutions>>, TError = ErrorType<unknown>>(
+ params?: ListExecutionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExecutions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExecutionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetExecutionUrl = (executionId: string,) => {
+
+
+
+
+  return `/api/v1/executions/${executionId}`
+}
+
+/**
+ * Returns an execution together with every node-level log recorded for it, ordered by start time.
+ * @summary Get an execution
+ */
+export const getExecution = async (executionId: string, options?: Parameters<typeof customFetch>[1]): Promise<GetExecution200> => {
+
+  return customFetch<GetExecution200>(getGetExecutionUrl(executionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetExecutionQueryKey = (executionId: string,) => {
+    return [
+    `/api/v1/executions/${executionId}`
+    ] as const;
+    }
+
+
+export const getGetExecutionQueryOptions = <TData = Awaited<ReturnType<typeof getExecution>>, TError = ErrorType<void>>(executionId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExecution>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetExecutionQueryKey(executionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getExecution>>> = ({ signal }) => getExecution(executionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: executionId !== null && executionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getExecution>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetExecutionQueryResult = NonNullable<Awaited<ReturnType<typeof getExecution>>>
+export type GetExecutionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get an execution
+ */
+
+export function useGetExecution<TData = Awaited<ReturnType<typeof getExecution>>, TError = ErrorType<void>>(
+ executionId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExecution>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetExecutionQueryOptions(executionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelExecutionUrl = (executionId: string,) => {
+
+
+
+
+  return `/api/v1/executions/${executionId}/cancel`
+}
+
+/**
+ * Requests cancellation of a pending or running execution. Any node currently in flight is aborted as soon as possible; the execution's final status becomes "cancelled".
+ * @summary Cancel an execution
+ */
+export const cancelExecution = async (executionId: string, options?: Parameters<typeof customFetch>[1]): Promise<CancelExecution200> => {
+
+  return customFetch<CancelExecution200>(getCancelExecutionUrl(executionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelExecutionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelExecution>>, TError,{executionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelExecution>>, TError,{executionId: string}, TContext> => {
+
+const mutationKey = ['cancelExecution'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelExecution>>, {executionId: string}> = (props) => {
+          const {executionId} = props ?? {};
+
+          return  cancelExecution(executionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelExecutionMutationResult = NonNullable<Awaited<ReturnType<typeof cancelExecution>>>
+
+    export type CancelExecutionMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel an execution
+ */
+export const useCancelExecution = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelExecution>>, TError,{executionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelExecution>>,
+        TError,
+        {executionId: string},
+        TContext
+      > => {
+      return useMutation(getCancelExecutionMutationOptions(options));
     }
 

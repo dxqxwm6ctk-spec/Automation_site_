@@ -55,7 +55,7 @@ export const ListWorkflowsResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')),
@@ -104,7 +104,7 @@ export const CreateWorkflowResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
@@ -152,7 +152,7 @@ export const GetWorkflowResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
@@ -222,7 +222,7 @@ export const SaveWorkflowVersionResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
@@ -262,7 +262,7 @@ export const UpdateWorkflowResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')
@@ -315,10 +315,151 @@ export const RestoreWorkflowVersionResponse = zod.object({
   "tags": zod.array(zod.string()),
   "isActive": zod.boolean(),
   "activeVersionId": zod.uuid().nullable(),
-  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('When this workflow\'s most recent execution was created. Null if it has never run.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')
+})
+
+
+/**
+ * Runs the workflow's active version. Starts the run asynchronously and returns immediately with a "pending" execution — poll GET /v1/executions/{executionId} for progress and the final result.
+ * @summary Execute a workflow
+ */
+export const ExecuteWorkflowParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const ExecuteWorkflowBody = zod.object({
+  "triggerPayload": zod.unknown().optional().describe('Arbitrary JSON passed as the input to the workflow\'s entry node.')
+})
+
+export const ExecuteWorkflowResponse = zod.object({
+  "execution": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "versionId": zod.uuid(),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'cancelled', 'timeout']),
+  "triggerType": zod.enum(['manual', 'webhook', 'schedule', 'api']),
+  "triggerPayload": zod.unknown().describe('The input the entry node ran with. Arbitrary JSON, or null.'),
+  "output": zod.unknown().describe('The workflow\'s final output (its terminal node\'s output, or one merged object keyed by node if it has several). Null until the execution finishes.'),
+  "error": zod.unknown().describe('Structured error detail if the execution didn\'t succeed. Null otherwise.'),
+  "startedAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable(),
+  "durationMs": zod.int().nullable(),
+  "retryCount": zod.int(),
+  "parentId": zod.uuid().nullable().describe('Reserved for sub-workflow calls. Always null for now.'),
+  "createdAt": zod.coerce.date()
+}).describe('A single run of a workflow.')
+})
+
+
+/**
+ * Returns a page of executions, most recently created first.
+ * @summary List executions
+ */
+export const listExecutionsQueryLimitDefault = 20;
+export const listExecutionsQueryLimitMax = 100;
+
+
+
+export const ListExecutionsQueryParams = zod.object({
+  "workflowId": zod.uuid().optional().describe('Only return executions for this workflow.'),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'cancelled', 'timeout']).optional().describe('Filter by execution status.'),
+  "after": zod.coerce.string().optional().describe('Opaque pagination cursor from a previous response\'s nextCursor.'),
+  "limit": zod.coerce.number().int().min(1).max(listExecutionsQueryLimitMax).default(listExecutionsQueryLimitDefault).describe('Max results per page (1-100).')
+})
+
+export const ListExecutionsResponse = zod.object({
+  "executions": zod.array(zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "versionId": zod.uuid(),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'cancelled', 'timeout']),
+  "triggerType": zod.enum(['manual', 'webhook', 'schedule', 'api']),
+  "triggerPayload": zod.unknown().describe('The input the entry node ran with. Arbitrary JSON, or null.'),
+  "output": zod.unknown().describe('The workflow\'s final output (its terminal node\'s output, or one merged object keyed by node if it has several). Null until the execution finishes.'),
+  "error": zod.unknown().describe('Structured error detail if the execution didn\'t succeed. Null otherwise.'),
+  "startedAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable(),
+  "durationMs": zod.int().nullable(),
+  "retryCount": zod.int(),
+  "parentId": zod.uuid().nullable().describe('Reserved for sub-workflow calls. Always null for now.'),
+  "createdAt": zod.coerce.date()
+}).describe('A single run of a workflow.')),
+  "nextCursor": zod.string().nullable(),
+  "total": zod.int()
+})
+
+
+/**
+ * Returns an execution together with every node-level log recorded for it, ordered by start time.
+ * @summary Get an execution
+ */
+export const GetExecutionParams = zod.object({
+  "executionId": zod.uuid()
+})
+
+export const GetExecutionResponse = zod.object({
+  "execution": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "versionId": zod.uuid(),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'cancelled', 'timeout']),
+  "triggerType": zod.enum(['manual', 'webhook', 'schedule', 'api']),
+  "triggerPayload": zod.unknown().describe('The input the entry node ran with. Arbitrary JSON, or null.'),
+  "output": zod.unknown().describe('The workflow\'s final output (its terminal node\'s output, or one merged object keyed by node if it has several). Null until the execution finishes.'),
+  "error": zod.unknown().describe('Structured error detail if the execution didn\'t succeed. Null otherwise.'),
+  "startedAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable(),
+  "durationMs": zod.int().nullable(),
+  "retryCount": zod.int(),
+  "parentId": zod.uuid().nullable().describe('Reserved for sub-workflow calls. Always null for now.'),
+  "createdAt": zod.coerce.date()
+}).describe('A single run of a workflow.'),
+  "logs": zod.array(zod.object({
+  "id": zod.uuid(),
+  "executionId": zod.uuid(),
+  "nodeKey": zod.string().describe('The graph node\'s `key` this log entry belongs to.'),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'skipped']),
+  "input": zod.unknown().describe('The value passed into this node. Arbitrary JSON, or null.'),
+  "output": zod.unknown().describe('The value this node produced. Null unless status is \"success\".'),
+  "error": zod.unknown().describe('Structured error detail if this node failed. Null otherwise.'),
+  "storageRef": zod.string().nullable().describe('Reserved for offloading large (>100 KB) payloads to object storage. Always null for now.'),
+  "durationMs": zod.int().nullable(),
+  "attempt": zod.int().describe('Always 1 — retries are not implemented yet.'),
+  "startedAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('A single node\'s run within an execution.'))
+})
+
+
+/**
+ * Requests cancellation of a pending or running execution. Any node currently in flight is aborted as soon as possible; the execution's final status becomes "cancelled".
+ * @summary Cancel an execution
+ */
+export const CancelExecutionParams = zod.object({
+  "executionId": zod.uuid()
+})
+
+export const CancelExecutionResponse = zod.object({
+  "execution": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "versionId": zod.uuid(),
+  "status": zod.enum(['pending', 'running', 'success', 'error', 'cancelled', 'timeout']),
+  "triggerType": zod.enum(['manual', 'webhook', 'schedule', 'api']),
+  "triggerPayload": zod.unknown().describe('The input the entry node ran with. Arbitrary JSON, or null.'),
+  "output": zod.unknown().describe('The workflow\'s final output (its terminal node\'s output, or one merged object keyed by node if it has several). Null until the execution finishes.'),
+  "error": zod.unknown().describe('Structured error detail if the execution didn\'t succeed. Null otherwise.'),
+  "startedAt": zod.coerce.date().nullable(),
+  "finishedAt": zod.coerce.date().nullable(),
+  "durationMs": zod.int().nullable(),
+  "retryCount": zod.int(),
+  "parentId": zod.uuid().nullable().describe('Reserved for sub-workflow calls. Always null for now.'),
+  "createdAt": zod.coerce.date()
+}).describe('A single run of a workflow.')
 })
 
 

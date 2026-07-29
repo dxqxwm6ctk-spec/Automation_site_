@@ -19,7 +19,7 @@ export interface Workflow {
   /** @nullable */
   activeVersionId: string | null;
   /**
-     * Reserved for the execution engine (Phase 1.4). Always null for now.
+     * When this workflow's most recent execution was created. Null if it has never run.
      * @nullable
      */
   lastExecutionAt?: Date | null;

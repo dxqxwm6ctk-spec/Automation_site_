@@ -8,44 +8,17 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
-import { db, workflows, workflowVersions } from "@workspace/db";
+import { db, executions, workflows, workflowVersions } from "@workspace/db";
 import { validateWorkflowGraph, type WorkflowGraphValidationResult } from "@workspace/node-registry";
 import { AppError } from "../../lib/errors";
+import { graphSchema } from "../../lib/graph";
+import { decodeCursor, encodeCursor } from "../../lib/cursor";
+import { buildExecutionPlan, assertAcyclic, GraphCycleError, GraphStructureError } from "../../engine/graphBuilder";
+import { runExecution } from "../../engine/executionEngine";
 
 const router = Router();
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
-
-/**
- * Graph JSON shape stored in workflow_versions.graph_json. Mirrors the
- * required/optional split of WorkflowGraphNode/WorkflowGraphConnection in
- * openapi.yaml — `key`/`type` (and `sourceKey`/`targetKey`) are structurally
- * required, `config` stays a loose record so @workspace/node-registry can
- * validate it against the node type's own schema (see
- * `assertValidGraph` below).
- */
-const graphNodeSchema = z.object({
-  key: z.string(),
-  type: z.string(),
-  label: z.string().nullable().optional(),
-  position: z.object({ x: z.number(), y: z.number() }).optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
-});
-
-const graphConnectionSchema = z.object({
-  sourceKey: z.string(),
-  sourceHandle: z.string().nullable().optional(),
-  targetKey: z.string(),
-  targetHandle: z.string().nullable().optional(),
-});
-
-export const graphSchema = z.object({
-  nodes: z.array(graphNodeSchema).default([]),
-  connections: z.array(graphConnectionSchema).default([]),
-});
-
-/** Graph JSON shape, as persisted in `workflow_versions.graph_json`. Reused by the execution engine. */
-export type Graph = z.infer<typeof graphSchema>;
 
 const createWorkflowBodySchema = z.object({
   name: z.string().min(1, "name is required").max(255),
@@ -85,38 +58,6 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-// ─── Cursor helpers ───────────────────────────────────────────────────────────
-
-/** Encodes (createdAt, id) into an opaque base64 cursor. */
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id })).toString(
-    "base64url",
-  );
-}
-
-/** Returns null on invalid/tampered cursors — treated as no cursor. */
-function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "createdAt" in parsed &&
-      "id" in parsed &&
-      typeof (parsed as { createdAt: unknown }).createdAt === "string" &&
-      typeof (parsed as { id: unknown }).id === "string"
-    ) {
-      return {
-        createdAt: new Date((parsed as { createdAt: string }).createdAt),
-        id: (parsed as { id: string }).id,
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Fetch a non-deleted workflow or throw 404. */
@@ -130,21 +71,48 @@ async function getWorkflowOrThrow(workflowId: string) {
   return workflow;
 }
 
+/** Most recent `createdAt` across all executions for this workflow, or null if it has never run. */
+async function getLastExecutionAt(workflowId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ createdAt: executions.createdAt })
+    .from(executions)
+    .where(eq(executions.workflowId, workflowId))
+    .orderBy(desc(executions.createdAt))
+    .limit(1);
+  return row?.createdAt ?? null;
+}
+
 function formatGraphErrors(errors: WorkflowGraphValidationResult["errors"]): string {
   return errors.map((error) => `${error.nodeId}.${error.field}: ${error.message}`).join("; ");
 }
 
 /**
- * Runs the shared node-registry validator over a graph and throws a 422
- * AppError (with per-node/per-field errors in `context.errors`) if any node
- * has an unknown type or a config that fails its type's schema. Called
- * before every graph write so an invalid graph can never be persisted.
+ * Runs the shared node-registry validator over a graph, plus a structural
+ * cycle check, and throws a 422 AppError (with per-node/per-field errors in
+ * `context.errors`) if either fails. Called before every graph write so an
+ * invalid graph can never be persisted.
+ *
+ * Only cycles are checked here — entry-node count and dangling connection
+ * references are validated at *execute* time instead (see
+ * engine/graphBuilder.ts's buildExecutionPlan, used by the `/execute` route
+ * below), because a work-in-progress graph with zero, one, or
+ * not-yet-wired-up nodes is a normal, valid thing to save; it just isn't
+ * runnable yet.
  */
 function assertValidGraph(graph: z.infer<typeof graphSchema>): void {
   const result = validateWorkflowGraph(graph);
-  if (!result.valid) {
-    throw new AppError("VALIDATION_ERROR", `Workflow graph is invalid: ${formatGraphErrors(result.errors)}`, {
-      errors: result.errors,
+  const errors = [...result.errors];
+
+  try {
+    assertAcyclic(graph);
+  } catch (err) {
+    if (!(err instanceof GraphCycleError)) throw err;
+    errors.push({ nodeId: "(graph)", field: "connections", message: err.message });
+  }
+
+  if (errors.length > 0) {
+    throw new AppError("VALIDATION_ERROR", `Workflow graph is invalid: ${formatGraphErrors(errors)}`, {
+      errors,
     });
   }
 }
@@ -203,15 +171,17 @@ router.get("/", async (req, res) => {
     ? encodeCursor(page[page.length - 1].createdAt, page[page.length - 1].id)
     : null;
 
+  const lastExecutionAts = await Promise.all(page.map((w) => getLastExecutionAt(w.id)));
+
   res.json({
-    workflows: page.map((w) => ({
+    workflows: page.map((w, i) => ({
       id: w.id,
       name: w.name,
       description: w.description,
       isActive: w.isActive,
       tags: w.tags,
       activeVersionId: w.activeVersionId,
-      lastExecutionAt: null, // populated in Phase 1.2 (Executions)
+      lastExecutionAt: lastExecutionAts[i],
       createdAt: w.createdAt,
       updatedAt: w.updatedAt,
     })),
@@ -273,7 +243,9 @@ router.get("/:workflowId", async (req, res) => {
     activeVersion = v ?? null;
   }
 
-  res.json({ workflow, activeVersion });
+  const lastExecutionAt = await getLastExecutionAt(workflow.id);
+
+  res.json({ workflow: { ...workflow, lastExecutionAt }, activeVersion });
 });
 
 // ─── PUT /v1/workflows/:workflowId ───────────────────────────────────────────
@@ -317,6 +289,69 @@ router.put("/:workflowId", async (req, res) => {
       createdAt: version.createdAt,
     },
   });
+});
+
+// ─── POST /v1/workflows/:workflowId/execute ──────────────────────────────────
+// Phase 1.4: runs the workflow's active version. Fires the engine
+// asynchronously and returns immediately — poll GET /v1/executions/:id (see
+// routes/v1/executions.ts) for progress and the final result.
+
+const executeWorkflowBodySchema = z
+  .object({
+    triggerPayload: z.unknown().optional(),
+  })
+  .default({});
+
+router.post("/:workflowId/execute", async (req, res) => {
+  const body = executeWorkflowBodySchema.parse(req.body ?? {});
+  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+
+  if (!workflow.activeVersionId) {
+    throw new AppError("EXECUTION_FAILED", `Workflow ${workflow.id} has no version to execute yet`);
+  }
+
+  const [version] = await db
+    .select()
+    .from(workflowVersions)
+    .where(eq(workflowVersions.id, workflow.activeVersionId))
+    .limit(1);
+  if (!version) {
+    throw new AppError(
+      "EXECUTION_FAILED",
+      `Active version for workflow ${workflow.id} could not be found`,
+    );
+  }
+
+  const graph = graphSchema.parse(version.graphJson);
+
+  let plan;
+  try {
+    plan = buildExecutionPlan(graph);
+  } catch (err) {
+    if (!(err instanceof GraphStructureError)) throw err;
+    throw new AppError("EXECUTION_FAILED", err.message);
+  }
+
+  const [execution] = await db
+    .insert(executions)
+    .values({
+      workflowId: workflow.id,
+      versionId: version.id,
+      status: "pending",
+      triggerType: "manual",
+      triggerPayload: (body.triggerPayload ?? null) as object | null,
+    })
+    .returning();
+
+  // Fire-and-forget: the engine runs asynchronously and persists its own
+  // progress/result onto this execution row — runExecution never rejects
+  // (see engine/executionEngine.ts), so this catch only guards against a
+  // truly unexpected internal error (e.g. the DB going away mid-run).
+  void runExecution(execution.id, graph, plan, body.triggerPayload).catch((err: unknown) => {
+    req.log.error({ err, executionId: execution.id }, "Unhandled execution engine error");
+  });
+
+  res.status(202).json({ execution });
 });
 
 // ─── PATCH /v1/workflows/:workflowId ─────────────────────────────────────────

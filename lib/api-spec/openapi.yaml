@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: workflows
     description: Workflow CRUD and versioning
+  - name: executions
+    description: Workflow execution and run history
 paths:
   /healthz:
     get:
@@ -255,6 +257,132 @@ paths:
                   workflow: { $ref: "#/components/schemas/Workflow" }
         "404":
           description: Workflow or version not found
+  /v1/workflows/{workflowId}/execute:
+    post:
+      operationId: executeWorkflow
+      tags: [workflows]
+      summary: Execute a workflow
+      description: >-
+        Runs the workflow's active version. Starts the run asynchronously
+        and returns immediately with a "pending" execution — poll
+        GET /v1/executions/{executionId} for progress and the final result.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                triggerPayload:
+                  description: Arbitrary JSON passed as the input to the workflow's entry node.
+      responses:
+        "202":
+          description: Execution accepted and started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [execution]
+                properties:
+                  execution: { $ref: "#/components/schemas/Execution" }
+        "404":
+          description: Workflow not found
+        "422":
+          description: >-
+            The workflow has no version to run, or its graph cannot be
+            executed (no entry node, more than one entry node, a cycle, or a
+            dangling connection reference).
+  /v1/executions:
+    get:
+      operationId: listExecutions
+      tags: [executions]
+      summary: List executions
+      description: Returns a page of executions, most recently created first.
+      parameters:
+        - name: workflowId
+          in: query
+          description: Only return executions for this workflow.
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          description: Filter by execution status.
+          schema: { $ref: "#/components/schemas/ExecutionStatus" }
+        - name: after
+          in: query
+          description: Opaque pagination cursor from a previous response's nextCursor.
+          schema: { type: string }
+        - name: limit
+          in: query
+          description: Max results per page (1-100).
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: A page of executions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [executions, nextCursor, total]
+                properties:
+                  executions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Execution" }
+                  nextCursor:
+                    type: ["string", "null"]
+                  total:
+                    type: integer
+  /v1/executions/{executionId}:
+    get:
+      operationId: getExecution
+      tags: [executions]
+      summary: Get an execution
+      description: >-
+        Returns an execution together with every node-level log recorded for
+        it, ordered by start time.
+      parameters:
+        - $ref: "#/components/parameters/ExecutionIdParam"
+      responses:
+        "200":
+          description: Execution detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [execution, logs]
+                properties:
+                  execution: { $ref: "#/components/schemas/Execution" }
+                  logs:
+                    type: array
+                    items: { $ref: "#/components/schemas/ExecutionLog" }
+        "404":
+          description: Execution not found
+  /v1/executions/{executionId}/cancel:
+    post:
+      operationId: cancelExecution
+      tags: [executions]
+      summary: Cancel an execution
+      description: >-
+        Requests cancellation of a pending or running execution. Any node
+        currently in flight is aborted as soon as possible; the execution's
+        final status becomes "cancelled".
+      parameters:
+        - $ref: "#/components/parameters/ExecutionIdParam"
+      responses:
+        "200":
+          description: The now-cancelled execution
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [execution]
+                properties:
+                  execution: { $ref: "#/components/schemas/Execution" }
+        "404":
+          description: Execution not found
+        "409":
+          description: Execution already finished and cannot be cancelled
 components:
   parameters:
     WorkflowIdParam:
@@ -264,6 +392,11 @@ components:
       schema: { type: string, format: uuid }
     VersionIdParam:
       name: versionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ExecutionIdParam:
+      name: executionId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -317,7 +450,7 @@ components:
         lastExecutionAt:
           type: ["string", "null"]
           format: date-time
-          description: Reserved for the execution engine (Phase 1.4). Always null for now.
+          description: When this workflow's most recent execution was created. Null if it has never run.
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     WorkflowInput:
@@ -410,3 +543,89 @@ components:
         sourceHandle: { type: ["string", "null"] }
         targetKey: { type: string }
         targetHandle: { type: ["string", "null"] }
+    ExecutionStatus:
+      type: string
+      enum: [pending, running, success, error, cancelled, timeout]
+    Execution:
+      type: object
+      description: A single run of a workflow.
+      required:
+        - id
+        - workflowId
+        - versionId
+        - status
+        - triggerType
+        - triggerPayload
+        - output
+        - error
+        - startedAt
+        - finishedAt
+        - durationMs
+        - retryCount
+        - parentId
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        workflowId: { type: string, format: uuid }
+        versionId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ExecutionStatus" }
+        triggerType:
+          type: string
+          enum: [manual, webhook, schedule, api]
+        triggerPayload:
+          description: The input the entry node ran with. Arbitrary JSON, or null.
+        output:
+          description: The workflow's final output (its terminal node's output, or one merged object keyed by node if it has several). Null until the execution finishes.
+        error:
+          description: Structured error detail if the execution didn't succeed. Null otherwise.
+        startedAt: { type: ["string", "null"], format: date-time }
+        finishedAt: { type: ["string", "null"], format: date-time }
+        durationMs: { type: ["integer", "null"] }
+        retryCount: { type: integer }
+        parentId:
+          type: ["string", "null"]
+          format: uuid
+          description: Reserved for sub-workflow calls. Always null for now.
+        createdAt: { type: string, format: date-time }
+    ExecutionLog:
+      type: object
+      description: A single node's run within an execution.
+      required:
+        - id
+        - executionId
+        - nodeKey
+        - status
+        - input
+        - output
+        - error
+        - storageRef
+        - durationMs
+        - attempt
+        - startedAt
+        - finishedAt
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        executionId: { type: string, format: uuid }
+        nodeKey:
+          type: string
+          description: The graph node's `key` this log entry belongs to.
+        status:
+          type: string
+          enum: [pending, running, success, error, skipped]
+        input:
+          description: The value passed into this node. Arbitrary JSON, or null.
+        output:
+          description: The value this node produced. Null unless status is "success".
+        error:
+          description: Structured error detail if this node failed. Null otherwise.
+        storageRef:
+          type: ["string", "null"]
+          description: Reserved for offloading large (>100 KB) payloads to object storage. Always null for now.
+        durationMs: { type: ["integer", "null"] }
+        attempt:
+          type: integer
+          description: Always 1 — retries are not implemented yet.
+        startedAt: { type: ["string", "null"], format: date-time }
+        finishedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }

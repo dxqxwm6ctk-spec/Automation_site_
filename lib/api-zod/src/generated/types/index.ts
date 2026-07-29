@@ -6,9 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './cancelExecution200';
 export * from './createWorkflow201';
+export * from './executeWorkflow202';
+export * from './executeWorkflowBody';
+export * from './execution';
+export * from './executionLog';
+export * from './executionLogStatus';
+export * from './executionStatus';
+export * from './executionTriggerType';
+export * from './getExecution200';
 export * from './getWorkflow200';
 export * from './healthStatus';
+export * from './listExecutions200';
+export * from './listExecutionsParams';
 export * from './listWorkflows200';
 export * from './listWorkflowsParams';
 export * from './listWorkflowVersions200';
