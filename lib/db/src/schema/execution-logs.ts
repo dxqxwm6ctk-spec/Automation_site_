@@ -1,4 +1,5 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { executions } from "./executions";
@@ -35,6 +36,10 @@ export const executionLogs = pgTable(
   (table) => [
     index("idx_exec_logs_execution").on(table.executionId),
     index("idx_exec_logs_node").on(table.executionId, table.nodeKey),
+    check(
+      "execution_logs_status_check",
+      sql`${table.status} in ('pending', 'running', 'success', 'error', 'skipped')`,
+    ),
   ],
 );
 

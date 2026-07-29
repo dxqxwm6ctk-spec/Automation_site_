@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { workflows } from "./workflows";
@@ -50,6 +50,14 @@ export const executions = pgTable(
       .where(sql`${table.status} IN ('pending','running')`),
     // Partition by month for scale — deferred until execution volume needs it
     // (see docs/02-database-schema.md "Data Retention & Partitioning").
+    check(
+      "executions_status_check",
+      sql`${table.status} in ('pending', 'running', 'success', 'error', 'cancelled', 'timeout')`,
+    ),
+    check(
+      "executions_trigger_type_check",
+      sql`${table.triggerType} in ('manual', 'webhook', 'schedule', 'api')`,
+    ),
   ],
 );
 

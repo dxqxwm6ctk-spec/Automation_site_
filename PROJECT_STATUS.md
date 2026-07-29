@@ -12,9 +12,9 @@ _Last updated: 2026-07-29_
 - API server artifact (`artifacts/api-server`) running Express 5 with Pino logging, CORS, JSON body parsing — confirmed running on port 8080
 - `GET /api/healthz` health check endpoint, backed by a Zod schema and OpenAPI-driven codegen (Orval → `@workspace/api-zod`, `@workspace/api-client-react`)
 - Canvas/mockup-sandbox artifact scaffolded (for design prototyping only — not the product's workflow canvas, which is still unbuilt)
+- **Phase 0.2 — Database Schema & Migrations is complete.** Drizzle schema for all 8 MVP tables (`workflows`, `workflow_versions`, `nodes`, `node_connections`, `executions`, `execution_logs`, `credentials`, `webhooks`) lives in `lib/db/src/schema/`, matching `docs/02-database-schema.md` exactly — columns, indexes, foreign keys, and CHECK constraints on the enum-like columns (`executions.status`, `executions.trigger_type`, `execution_logs.status`, `webhooks.response_mode`; these were added this session to close the only gap versus the doc). Pushed to Postgres with `pnpm --filter @workspace/db run push`; all tables/indexes/FKs/CHECK constraints confirmed present in the database. The app-side Drizzle client (`lib/db/src/index.ts`) was verified end-to-end with a live insert/select/delete round-trip against `workflows`.
 
 ### Not started
-- Drizzle schema — `lib/db/src/schema/index.ts` is still the empty template; none of the MVP tables from `docs/02-database-schema.md` exist yet (`workflows`, `workflow_versions`, `nodes`, `node_connections`, `executions`, `execution_logs`, `credentials`, `webhooks`, ...)
 - Redis + BullMQ queue infrastructure (no `REDIS_URL` yet)
 - `ENCRYPTION_KEY` secret (needed once the credential store is built — Phase 1.7)
 - Worker process / artifact for workflow execution (proposed as project task #4)
@@ -44,4 +44,4 @@ Per `docs/01-architecture.md`, `docs/02-database-schema.md`, and `docs/03-api-sp
 
 ## Next phase
 
-**Phase 0.2 — Database Schema & Migrations** (`docs/06-implementation-phases.md`): write the Drizzle schema for the MVP tables in `lib/db/src/schema/`, matching `docs/02-database-schema.md` exactly (columns, indexes, relationships), then push it to the already-provisioned Postgres database with `pnpm --filter @workspace/db run push`. Nothing else in Milestone 1 can start until this exists.
+**Finish Phase 0.3 — API Skeleton + Health Endpoints** (`docs/06-implementation-phases.md`): the health check works today, but `/api/ready` (DB + Redis connectivity check), a global error handler, and a request-logger middleware still need their own files (tracked as project task "Add the /api/ready health check and request logging middleware"). Milestone 1 Phase 1.1 (Workflow CRUD + Versioning) depends on both Phase 0.2 (now done) and Phase 0.3, so it can't start until this closes out.

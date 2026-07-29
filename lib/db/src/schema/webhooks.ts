@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { workflows } from "./workflows";
@@ -29,7 +29,13 @@ export const webhooks = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_webhooks_workflow").on(table.workflowId)],
+  (table) => [
+    index("idx_webhooks_workflow").on(table.workflowId),
+    check(
+      "webhooks_response_mode_check",
+      sql`${table.responseMode} in ('immediate', 'wait_for_completion')`,
+    ),
+  ],
 );
 
 export const insertWebhookSchema = createInsertSchema(webhooks).omit({
