@@ -5,17 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export type ReadinessStatusChecks = {
-  postgres: string;
-  redis: string;
-};
+import type { ReadinessStatusChecks } from './readinessStatusChecks';
 
 export interface ReadinessStatus {
   status: string;
   checks: ReadinessStatusChecks;
 }
-

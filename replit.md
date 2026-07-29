@@ -9,8 +9,10 @@ A developer-first, self-hostable workflow automation platform — visually build
 - `pnpm --filter @workspace/api-server run dev` — run the API server (defaults to port 8080 via `PORT` env var)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
+- `pnpm run test` — run tests in every package that has a `test` script (currently just `@workspace/api-server`, via Vitest + Supertest)
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- Health checks: `GET /api/healthz` (liveness) and `GET /api/ready` (readiness — Postgres checked live; Redis reports `not_configured` until Phase 0.4 provisions it)
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required env (once the credential store ships, Phase 1.7): `ENCRYPTION_KEY` — 32 hex bytes, AES-256 credential encryption key
 - `JWT_SECRET`, `JWT_REFRESH_SECRET` are NOT needed for the MVP — they belong to the deferred Milestone 4 (Authentication & Multi-Tenancy). The MVP has no login.

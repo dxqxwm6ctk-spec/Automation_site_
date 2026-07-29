@@ -24,6 +24,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /ready:
+    get:
+      operationId: readinessCheck
+      tags: [health]
+      summary: Readiness check
+      description: >-
+        Reports whether downstream dependencies are reachable. Postgres is
+        checked live; Redis is reported as "not_configured" until Phase 0.4
+        provisions it. Returns 200 when ready, 503 when degraded.
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: Degraded — one or more dependencies are unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +55,22 @@ components:
           type: string
       required:
         - status
+    ReadinessStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        checks:
+          type: object
+          properties:
+            postgres:
+              type: string
+            redis:
+              type: string
+          required:
+            - postgres
+            - redis
+      required:
+        - status
+        - checks
 

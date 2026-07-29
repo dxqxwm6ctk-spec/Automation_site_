@@ -1,2 +1,3 @@
 - [FlowForge MVP scope & milestone order](flowforge-mvp-scope.md) — MVP is unauth/single-tenant by design; auth lands later as Milestone 4, after Integration Nodes (Milestone 3).
 - [FlowForge DB schema notes](flowforge-db-schema-notes.md) — PROJECT_STATUS.md can drift from real code state; Drizzle `text(enum:[...])` needs an explicit `check()` to become a real DB constraint.
+- [Ad hoc script module resolution in pnpm workspaces](pnpm-workspace-adhoc-scripts.md) — a scratch script outside a workspace package fails to resolve deps; read source/types directly instead.
