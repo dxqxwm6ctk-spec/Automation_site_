@@ -1,0 +1,154 @@
+Continue implementation from the current state. Do NOT re-explore the repository, repeat architecture analysis, or restate plans. Assume Phase 1.2 is complete and verified.
+
+Current verified state:
+- Database schema is migrated and DATABASE_URL is configured.
+- Root typecheck passes cleanly.
+- All tests currently pass.
+- Workflow canvas (Phase 1.2) is implemented and save/load round-trip is verified.
+- API Server, FlowForge, and Canvas artifacts are already registered and running.
+- The repository is healthy. Continue implementation only.
+
+Your task is to implement Phase 1.3: Shared Node Registry & Integration Foundation.
+
+Requirements:
+
+1. Create a new workspace package:
+
+lib/node-registry
+
+following existing workspace conventions.
+
+2. Move node metadata into the shared package.
+
+Each node definition must include:
+
+- id
+- name
+- description
+- category
+- icon (string identifier)
+- inputs
+- outputs
+- configSchema (Zod)
+- defaultConfig
+
+Categories:
+
+- trigger
+- action
+- logic
+- control
+
+Implement these node types:
+
+- start
+- webhook_trigger
+- http_request
+- delay
+- if
+- end
+
+3. Implement validation helpers:
+
+validateNodeConfig()
+validateWorkflowGraph()
+
+Validation should return structured field errors.
+
+4. Integrate validation into workflow save endpoints.
+
+Invalid workflow graphs must return HTTP 422 with detailed validation errors.
+
+5. Extend OpenAPI.
+
+Add webhook_trigger to WorkflowGraphNodeType.
+
+Regenerate generated API code afterwards.
+
+6. Refactor frontend.
+
+Replace the local node registry with the shared package.
+
+Keep only React-specific concerns locally:
+
+- icon mapping
+- colors
+- UI helpers
+
+Everything else should come from @workspace/node-registry.
+
+7. Update Canvas components.
+
+CanvasNode should render inputs/outputs dynamically from registry metadata.
+
+WorkflowCanvasView should generate nodeTypes dynamically.
+
+8. Update NodePalette.
+
+- Group nodes by category.
+- Include webhook trigger.
+- Build palette from registry metadata instead of hardcoded definitions.
+
+9. Update NodeInspector.
+
+Implement configuration editors for:
+
+HTTP Request
+- method
+- url
+- headers
+- query params
+- auth
+- timeout
+
+Webhook Trigger
+- path
+- response mode
+
+Delay
+- durationMs
+
+If
+- condition
+
+Use validateNodeConfig() for inline validation.
+
+10. Tests.
+
+Add:
+
+- registry tests
+- validation tests
+- backend workflow validation tests
+- update existing fixtures that use obsolete node types
+
+11. Verify.
+
+Run:
+
+pnpm install
+
+pnpm typecheck
+
+pnpm test
+
+Fix all failures until everything passes.
+
+12. Documentation.
+
+Update PROJECT_STATUS.md accurately.
+
+Document:
+
+- Phase 1.3 completion
+- new registry architecture
+- remaining work for Phase 1.4
+
+Important:
+
+- Do not redesign existing architecture.
+- Preserve WorkflowGraph compatibility.
+- Follow existing workspace patterns.
+- Keep commits incremental.
+- Do not produce another planning document.
+- Implement directly.

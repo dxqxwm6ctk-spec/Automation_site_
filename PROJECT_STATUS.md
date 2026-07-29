@@ -4,7 +4,7 @@ _Last updated: 2026-07-29_
 
 ## Where we are
 
-**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): Phase 1.1 (Workflow CRUD + Versioning) is complete, and Phase 1.2 (Visual Canvas) is substantially implemented** — the workflow list and canvas editor pages are live, wired to the real API, and covered by passing tests. No execution engine or webhooks yet. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
+**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): Phase 1.1 (Workflow CRUD + Versioning) is complete, Phase 1.2 (Visual Canvas) is substantially implemented, and Phase 1.3 (Shared Node Registry & Integration Foundation) is complete for its scoped node set** — `start`, `webhook_trigger`, `http_request`, `delay`, `if`, `end` are defined once in a shared package and used identically by the API's validation and the canvas's palette/inspector. This is narrower than `docs/06-implementation-phases.md`'s "Phase 1.3 — Core Nodes", which additionally wants Schedule Trigger, Code, Set Variable, Log, and Loop nodes — those remain outstanding (see "Not started"). No execution engine or webhooks yet. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
 
 ### Done
 
@@ -43,13 +43,22 @@ _Last updated: 2026-07-29_
   - Routing confirmed in `App.tsx`: `/` → workflow list, `/workflows/:id` → editor.
   - Verified end-to-end for real: created a workflow via the API, `PUT` a 3-node/2-connection graph, `GET` it back and confirmed the graph round-trips byte-for-byte with the version number incremented — satisfies the phase's "add nodes, connect, save → persists on refresh" acceptance criterion at the data layer. Both routes also confirmed serving the correct SPA shell over HTTP (200 OK, correct `<title>`, correct entry script).
   - 7 new Vitest tests (all in `graph-transform.test.ts`); combined with the backend, 45 tests pass across the whole repo.
+- **Phase 1.3 — Shared Node Registry & Integration Foundation is complete**, for the scoped node set `start` / `webhook_trigger` / `http_request` / `delay` / `if` / `end`:
+  - New workspace package `lib/node-registry/` (`@workspace/node-registry`) is the single source of truth for node metadata — framework-agnostic `NodeDefinition` (`id`, `name`, `description`, `category`, `icon` string id, `inputs`/`outputs` ports, Zod `configSchema`, `defaultConfig`), grouped into categories `trigger` / `action` / `logic` / `control`. Used identically by the API server and the web frontend — no duplicated node metadata anywhere.
+  - `validateNodeConfig(type, config)` validates one node's config against its type's Zod schema; `validateWorkflowGraph(graph)` validates every node in a graph (unknown type + per-node config) and aggregates structured `{ nodeId, field, message }` errors.
+  - Validation is enforced server-side: `POST /api/v1/workflows` and `PUT /api/v1/workflows/:id` both call `assertValidGraph()` before writing to the database; an invalid graph returns 422 with `context.errors` and is never persisted (covered by dedicated tests in `workflows.test.ts`).
+  - `openapi.yaml`'s `WorkflowGraphNodeType` enum includes `webhook_trigger`; `@workspace/api-zod` and `@workspace/api-client-react` are regenerated and confirmed in sync (a clean `orval` codegen run produces no diff).
+  - Frontend refactor: `artifacts/web/.../workflow-canvas/node-registry.ts` wraps the shared package's `listNodeDefinitions()` and keeps only true UI concerns locally — lucide-react icon component mapping and Tailwind color classes. `NodePalette` now groups nodes by category (Triggers / Actions / Logic / Control) and includes Webhook Trigger. `CanvasNode` renders ports and `WorkflowCanvasView` builds its React Flow `nodeTypes` map from registry metadata instead of a hardcoded list. `NodeInspector` has config editors for HTTP Request (method, URL, headers, query params, auth, timeout), Webhook Trigger (path, response mode), Delay (durationMs), and If (condition), each running `validateNodeConfig()` for inline field errors.
+  - 19 new tests in `lib/node-registry/` (`registry.test.ts`, `validation.test.ts`); combined with the backend and frontend, **70 tests pass across the whole repo**.
+  - **Bug fix:** `workflows.test.ts` had one untyped `workflow.id` (missing the `as string` cast used everywhere else in that file) feeding a Drizzle `eq()` call, which broke `pnpm run typecheck` even though the app ran fine. Fixed to match the file's existing pattern — `pnpm install`, `pnpm run typecheck`, and `pnpm run test` all now pass clean with no other changes needed.
 
 ### Not started
+- Remaining MVP node types beyond Phase 1.3's scoped set — **Schedule Trigger, Code (JS sandbox / `isolated-vm`), Set Variable, Log, Loop** — needed to reach the full node list in `replit.md`'s Product section and `docs/06-implementation-phases.md`'s Phase 1.3 (Core Nodes). The registry architecture and validation pipeline are already in place; adding a node type is now just a new file in `lib/node-registry/src/nodes/` plus a palette icon/color mapping.
 - Redis + BullMQ queue infrastructure (no `REDIS_URL` yet) — also needed before `/api/ready` can check Redis for real
 - `ENCRYPTION_KEY` secret (needed once the credential store is built — Phase 1.7)
-- Worker process / artifact for workflow execution (proposed as project task #2)
-- Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search/categories (today it's a flat list, fine for 5 node types but won't scale), and keyboard shortcuts beyond React Flow's built-in pan/zoom (copy/paste, select-all, delete-key are not wired up)
-- Phase 1.3 (Core Nodes — expanding today's 5 basic node types to the full MVP set), Phase 1.4 (Execution Engine), and everything else in Milestone 1 onward
+- Worker process / artifact for workflow execution (tracked as an open project task)
+- Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search (categories now exist — see Phase 1.3 above), and keyboard shortcuts beyond React Flow's built-in pan/zoom (copy/paste, select-all, delete-key are not wired up)
+- Phase 1.4 (Execution Engine) and everything else in Milestone 1 onward
 
 ### Replit-specific notes
 - `docs/04-folder-structure.md` describes the target **production/self-hosted** layout (`apps/`, `packages/`, `infra/` with Docker Compose, Kubernetes, Helm). On Replit this project instead uses the pnpm-workspace template's `artifacts/` + `lib/` layout (see `replit.md`). Same architecture, different folder names — don't try to reconcile them literally.
@@ -57,7 +66,7 @@ _Last updated: 2026-07-29_
 - `docs/03-api-specification.md` writes the readiness route as `/api/v1/ready`. This project already diverges from that versioned path scheme for `/healthz` (no `/v1` prefix anywhere), so `/api/ready` follows the same existing convention rather than the doc's literal path. The production startup health check in `artifacts/api-server/.replit-artifact/artifact.toml` stays on `/api/healthz`, not `/ready` — don't change that.
 - The workflow CRUD routes are correctly mounted under `/api/v1/` per the spec.
 - A fresh Postgres container has no tables until someone runs `pnpm --filter @workspace/db run push` — the schema isn't seeded automatically on environment (re)provisioning. If `/api/v1/workflows` 500s with `relation "workflows" does not exist`, that's why; re-run the push.
-- `artifacts/web` and `artifacts/api-server` each have a valid `.replit-artifact/artifact.toml` on disk and a matching `.replit` workflow, but as of this writing neither is registered with Replit's artifact registry (`listArtifacts()` returns empty), so the agent's screenshot tooling can't target them by name yet. This doesn't affect the running app — both dev servers work fine and are reachable directly — it only affects visual verification tooling. Likely residue from the GitHub export/import round-trip; needs registering properly the next time someone sets up artifact-based preview for this project.
+- `artifacts/web`, `artifacts/api-server`, and `artifacts/mockup-sandbox` are registered with Replit's artifact registry (fixed post-import — they previously had valid `artifact.toml` + workflows on disk but weren't registered, so `listArtifacts()`/screenshot tooling couldn't see them). Preview paths: web → `/`, API → `/api`, mockup sandbox → `/__mockup`.
 
 ## MVP scope (confirmed)
 
@@ -69,9 +78,9 @@ Per `docs/01-architecture.md`, `docs/02-database-schema.md`, and `docs/03-api-sp
 
 ## Next phase
 
-**Phase 1.1 — Workflow CRUD + Versioning is complete. Phase 1.2 — Visual Canvas is substantially implemented** (see Done/Not started above for exactly what's covered and what's left).
+**Phase 1.1 — Workflow CRUD + Versioning is complete. Phase 1.2 — Visual Canvas is substantially implemented. Phase 1.3 — Shared Node Registry & Integration Foundation is complete for its scoped node set** (see Done/Not started above for exactly what's covered and what's left).
 
 **Next, in phase order per `docs/06-implementation-phases.md`:**
-1. Close out the remaining Phase 1.2 gaps (undo/redo, auto-layout, palette search) — optional polish, not blocking.
-2. **Phase 1.3 — Core Nodes**: expand from today's 5 basic node types to the full MVP node set.
-3. **Phase 1.4 — Execution Engine**: `POST /api/v1/workflows/:id/execute`, `GET /api/v1/executions`, `GET /api/v1/executions/:id`, `POST /api/v1/executions/:id/cancel`. Requires Redis + BullMQ queue infrastructure (Phase 0.4, skipped until needed) and the worker process artifact. Scope per the phase doc: DAG execution, node dispatch, execution record tracking, and node-level logs — using the existing `executions` and `execution_logs` tables. Tracked separately as project task #2.
+1. Close out the remaining Phase 1.2 gaps (undo/redo, auto-layout) — optional polish, not blocking.
+2. **Finish Phase 1.3 / Core Nodes**: add the remaining MVP node types (Schedule Trigger, Code, Set Variable, Log, Loop) to `lib/node-registry/` using the same pattern as the existing six node types — no new architecture needed, just new node definitions plus matching `NodeInspector` config editors and palette icon/color entries.
+3. **Phase 1.4 — Execution Engine**: `POST /api/v1/workflows/:id/execute`, `GET /api/v1/executions`, `GET /api/v1/executions/:id`, `POST /api/v1/executions/:id/cancel`. Requires Redis + BullMQ queue infrastructure (Phase 0.4, skipped until needed) and the worker process artifact. Scope per the phase doc: DAG execution, node dispatch, execution record tracking, and node-level logs — using the existing `executions` and `execution_logs` tables. Tracked separately as an open project task.

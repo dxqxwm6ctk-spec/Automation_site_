@@ -302,7 +302,7 @@ describe("PUT /api/v1/workflows/:workflowId", () => {
     const versions = await db
       .select()
       .from(workflowVersions)
-      .where(eq(workflowVersions.workflowId, workflow.id));
+      .where(eq(workflowVersions.workflowId, workflow.id as string));
     expect(versions).toHaveLength(1); // only the initial version from createTestWorkflow
   });
 
