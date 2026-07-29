@@ -19,3 +19,190 @@ export interface ReadinessStatus {
   checks: ReadinessStatusChecks;
 }
 
+/**
+ * A workflow and its metadata (not its graph — see WorkflowVersion).
+ */
+export interface Workflow {
+  id: string;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  tags: string[];
+  isActive: boolean;
+  /** @nullable */
+  activeVersionId: string | null;
+  /**
+     * Reserved for the execution engine (Phase 1.4). Always null for now.
+     * @nullable
+     */
+  lastExecutionAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WorkflowGraphNodeType = typeof WorkflowGraphNodeType[keyof typeof WorkflowGraphNodeType];
+
+
+export const WorkflowGraphNodeType = {
+  start: 'start',
+  http_request: 'http_request',
+  delay: 'delay',
+  if: 'if',
+  end: 'end',
+} as const;
+
+export type WorkflowGraphNodePosition = {
+  x: number;
+  y: number;
+};
+
+/**
+ * Node-type-specific settings (shape depends on type).
+ */
+export type WorkflowGraphNodeConfig = { [key: string]: unknown };
+
+/**
+ * A single node placed on the canvas.
+ */
+export interface WorkflowGraphNode {
+  /** Stable node identifier, unique within the graph. */
+  key: string;
+  type: WorkflowGraphNodeType;
+  /** @nullable */
+  label?: string | null;
+  position?: WorkflowGraphNodePosition;
+  /** Node-type-specific settings (shape depends on type). */
+  config?: WorkflowGraphNodeConfig;
+}
+
+/**
+ * A directed edge between two nodes.
+ */
+export interface WorkflowGraphConnection {
+  sourceKey: string;
+  /** @nullable */
+  sourceHandle?: string | null;
+  targetKey: string;
+  /** @nullable */
+  targetHandle?: string | null;
+}
+
+export interface WorkflowGraph {
+  nodes: WorkflowGraphNode[];
+  connections: WorkflowGraphConnection[];
+}
+
+export interface WorkflowInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  description?: string;
+  tags?: string[];
+  graph?: WorkflowGraph;
+}
+
+/**
+ * At least one field must be provided.
+ */
+export interface WorkflowUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  tags?: string[];
+  isActive?: boolean;
+}
+
+export interface WorkflowVersionInput {
+  graph: WorkflowGraph;
+  description?: string;
+}
+
+/**
+ * A full, immutable snapshot of a workflow's graph.
+ */
+export interface WorkflowVersion {
+  id: string;
+  workflowId: string;
+  version: number;
+  graphJson: WorkflowGraph;
+  /** @nullable */
+  description: string | null;
+  createdAt: string;
+}
+
+/**
+ * Version metadata without the (potentially large) graph payload.
+ */
+export interface WorkflowVersionSummary {
+  id: string;
+  version: number;
+  /** @nullable */
+  description: string | null;
+  createdAt: string;
+}
+
+export type ListWorkflowsParams = {
+/**
+ * Case-insensitive substring match on workflow name.
+ */
+search?: string;
+/**
+ * Filter by active status.
+ */
+isActive?: boolean;
+/**
+ * Only return workflows that have ALL of the given tags.
+ */
+tags?: string[];
+/**
+ * Opaque pagination cursor from a previous response's nextCursor.
+ */
+after?: string;
+/**
+ * Max results per page (1-100).
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListWorkflows200 = {
+  workflows: Workflow[];
+  /** @nullable */
+  nextCursor: string | null;
+  total: number;
+};
+
+export type CreateWorkflow201 = {
+  workflow: Workflow;
+  version: WorkflowVersion;
+};
+
+export type GetWorkflow200 = {
+  workflow: Workflow;
+  activeVersion: WorkflowVersion | null;
+};
+
+export type SaveWorkflowVersion200 = {
+  workflow: Workflow;
+  version: WorkflowVersionSummary;
+};
+
+export type UpdateWorkflow200 = {
+  workflow: Workflow;
+};
+
+export type ListWorkflowVersions200 = {
+  versions: WorkflowVersionSummary[];
+};
+
+export type RestoreWorkflowVersion200 = {
+  workflow: Workflow;
+};
+

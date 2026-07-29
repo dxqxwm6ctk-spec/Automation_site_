@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: workflows
+    description: Workflow CRUD and versioning
 paths:
   /healthz:
     get:
@@ -46,7 +48,225 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessStatus"
+  /v1/workflows:
+    get:
+      operationId: listWorkflows
+      tags: [workflows]
+      summary: List workflows
+      description: Returns a page of workflows, most recently created first.
+      parameters:
+        - name: search
+          in: query
+          description: Case-insensitive substring match on workflow name.
+          schema: { type: string }
+        - name: isActive
+          in: query
+          description: Filter by active status.
+          schema: { type: boolean }
+        - name: tags
+          in: query
+          description: Only return workflows that have ALL of the given tags.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: after
+          in: query
+          description: Opaque pagination cursor from a previous response's nextCursor.
+          schema: { type: string }
+        - name: limit
+          in: query
+          description: Max results per page (1-100).
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: A page of workflows
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflows, nextCursor, total]
+                properties:
+                  workflows:
+                    type: array
+                    items: { $ref: "#/components/schemas/Workflow" }
+                  nextCursor:
+                    type: ["string", "null"]
+                  total:
+                    type: integer
+    post:
+      operationId: createWorkflow
+      tags: [workflows]
+      summary: Create a workflow
+      description: Creates a workflow and its initial version (version 1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkflowInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow, version]
+                properties:
+                  workflow: { $ref: "#/components/schemas/Workflow" }
+                  version: { $ref: "#/components/schemas/WorkflowVersion" }
+        "422":
+          description: Validation error
+  /v1/workflows/{workflowId}:
+    get:
+      operationId: getWorkflow
+      tags: [workflows]
+      summary: Get a workflow
+      description: Returns a workflow along with its currently active version.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      responses:
+        "200":
+          description: Workflow detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow, activeVersion]
+                properties:
+                  workflow: { $ref: "#/components/schemas/Workflow" }
+                  activeVersion:
+                    oneOf:
+                      - $ref: "#/components/schemas/WorkflowVersion"
+                      - type: "null"
+        "404":
+          description: Workflow not found
+    put:
+      operationId: saveWorkflowVersion
+      tags: [workflows]
+      summary: Save a new workflow version
+      description: >-
+        Creates a new version from the given graph and makes it the active
+        version. Existing versions are never modified — every save is a new,
+        incrementing version number.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkflowVersionInput" }
+      responses:
+        "200":
+          description: The new version, now active
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow, version]
+                properties:
+                  workflow: { $ref: "#/components/schemas/Workflow" }
+                  version: { $ref: "#/components/schemas/WorkflowVersionSummary" }
+        "404":
+          description: Workflow not found
+        "422":
+          description: Validation error
+    patch:
+      operationId: updateWorkflow
+      tags: [workflows]
+      summary: Update workflow metadata
+      description: Updates name, description, tags, and/or isActive. Does not create a new version.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkflowUpdate" }
+      responses:
+        "200":
+          description: Updated workflow
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow]
+                properties:
+                  workflow: { $ref: "#/components/schemas/Workflow" }
+        "404":
+          description: Workflow not found
+        "422":
+          description: Validation error
+    delete:
+      operationId: deleteWorkflow
+      tags: [workflows]
+      summary: Delete a workflow
+      description: Soft-deletes the workflow. It no longer appears in list/get responses.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Workflow not found
+  /v1/workflows/{workflowId}/versions:
+    get:
+      operationId: listWorkflowVersions
+      tags: [workflows]
+      summary: List workflow versions
+      description: Returns every saved version for a workflow, most recent first.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+      responses:
+        "200":
+          description: Versions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [versions]
+                properties:
+                  versions:
+                    type: array
+                    items: { $ref: "#/components/schemas/WorkflowVersionSummary" }
+        "404":
+          description: Workflow not found
+  /v1/workflows/{workflowId}/versions/{versionId}/restore:
+    post:
+      operationId: restoreWorkflowVersion
+      tags: [workflows]
+      summary: Restore a previous version
+      description: >-
+        Points the workflow's active version back at an existing version.
+        Does not create a new version.
+      parameters:
+        - $ref: "#/components/parameters/WorkflowIdParam"
+        - $ref: "#/components/parameters/VersionIdParam"
+      responses:
+        "200":
+          description: Workflow with the restored active version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workflow]
+                properties:
+                  workflow: { $ref: "#/components/schemas/Workflow" }
+        "404":
+          description: Workflow or version not found
 components:
+  parameters:
+    WorkflowIdParam:
+      name: workflowId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VersionIdParam:
+      name: versionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
     HealthStatus:
       type: object
@@ -73,4 +293,120 @@ components:
       required:
         - status
         - checks
-
+    Workflow:
+      type: object
+      description: A workflow and its metadata (not its graph — see WorkflowVersion).
+      required:
+        - id
+        - name
+        - description
+        - tags
+        - isActive
+        - activeVersionId
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+        activeVersionId: { type: ["string", "null"], format: uuid }
+        lastExecutionAt:
+          type: ["string", "null"]
+          format: date-time
+          description: Reserved for the execution engine (Phase 1.4). Always null for now.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkflowInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+          default: []
+        graph:
+          $ref: "#/components/schemas/WorkflowGraph"
+    WorkflowUpdate:
+      type: object
+      description: At least one field must be provided.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: ["string", "null"] }
+        tags:
+          type: array
+          items: { type: string }
+        isActive: { type: boolean }
+    WorkflowVersionInput:
+      type: object
+      required: [graph]
+      properties:
+        graph: { $ref: "#/components/schemas/WorkflowGraph" }
+        description: { type: string }
+    WorkflowVersion:
+      type: object
+      description: A full, immutable snapshot of a workflow's graph.
+      required: [id, workflowId, version, graphJson, description, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        workflowId: { type: string, format: uuid }
+        version: { type: integer }
+        graphJson: { $ref: "#/components/schemas/WorkflowGraph" }
+        description: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    WorkflowVersionSummary:
+      type: object
+      description: Version metadata without the (potentially large) graph payload.
+      required: [id, version, description, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        description: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    WorkflowGraph:
+      type: object
+      required: [nodes, connections]
+      properties:
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/WorkflowGraphNode" }
+        connections:
+          type: array
+          items: { $ref: "#/components/schemas/WorkflowGraphConnection" }
+    WorkflowGraphNode:
+      type: object
+      description: A single node placed on the canvas.
+      required: [key, type]
+      properties:
+        key:
+          type: string
+          description: Stable node identifier, unique within the graph.
+        type:
+          type: string
+          enum: [start, http_request, delay, if, end]
+        label:
+          type: ["string", "null"]
+        position:
+          type: object
+          required: [x, y]
+          properties:
+            x: { type: number }
+            y: { type: number }
+        config:
+          type: object
+          additionalProperties: true
+          description: Node-type-specific settings (shape depends on type).
+    WorkflowGraphConnection:
+      type: object
+      description: A directed edge between two nodes.
+      required: [sourceKey, targetKey]
+      properties:
+        sourceKey: { type: string }
+        sourceHandle: { type: ["string", "null"] }
+        targetKey: { type: string }
+        targetHandle: { type: ["string", "null"] }

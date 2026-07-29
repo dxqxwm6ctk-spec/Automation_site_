@@ -30,3 +30,295 @@ export const ReadinessCheckResponse = zod.object({
 })
 
 
+/**
+ * Returns a page of workflows, most recently created first.
+ * @summary List workflows
+ */
+export const listWorkflowsQueryLimitDefault = 20;
+export const listWorkflowsQueryLimitMax = 100;
+
+
+
+export const ListWorkflowsQueryParams = zod.object({
+  "search": zod.coerce.string().optional().describe('Case-insensitive substring match on workflow name.'),
+  "isActive": zod.coerce.boolean().optional().describe('Filter by active status.'),
+  "tags": zod.array(zod.coerce.string()).optional().describe('Only return workflows that have ALL of the given tags.'),
+  "after": zod.coerce.string().optional().describe('Opaque pagination cursor from a previous response\'s nextCursor.'),
+  "limit": zod.coerce.number().int().min(1).max(listWorkflowsQueryLimitMax).default(listWorkflowsQueryLimitDefault).describe('Max results per page (1-100).')
+})
+
+export const ListWorkflowsResponse = zod.object({
+  "workflows": zod.array(zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')),
+  "nextCursor": zod.string().nullable(),
+  "total": zod.int()
+})
+
+
+/**
+ * Creates a workflow and its initial version (version 1).
+ * @summary Create a workflow
+ */
+export const createWorkflowBodyNameMax = 255;
+
+export const createWorkflowBodyTagsDefault = [];
+
+export const CreateWorkflowBody = zod.object({
+  "name": zod.string().min(1).max(createWorkflowBodyNameMax),
+  "description": zod.string().optional(),
+  "tags": zod.array(zod.string()).default(createWorkflowBodyTagsDefault),
+  "graph": zod.object({
+  "nodes": zod.array(zod.object({
+  "key": zod.string().describe('Stable node identifier, unique within the graph.'),
+  "type": zod.enum(['start', 'http_request', 'delay', 'if', 'end']),
+  "label": zod.string().nullish(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}).optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional().describe('Node-type-specific settings (shape depends on type).')
+}).describe('A single node placed on the canvas.')),
+  "connections": zod.array(zod.object({
+  "sourceKey": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetKey": zod.string(),
+  "targetHandle": zod.string().nullish()
+}).describe('A directed edge between two nodes.'))
+}).optional()
+})
+
+export const CreateWorkflowResponse = zod.object({
+  "workflow": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
+  "version": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "version": zod.int(),
+  "graphJson": zod.object({
+  "nodes": zod.array(zod.object({
+  "key": zod.string().describe('Stable node identifier, unique within the graph.'),
+  "type": zod.enum(['start', 'http_request', 'delay', 'if', 'end']),
+  "label": zod.string().nullish(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}).optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional().describe('Node-type-specific settings (shape depends on type).')
+}).describe('A single node placed on the canvas.')),
+  "connections": zod.array(zod.object({
+  "sourceKey": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetKey": zod.string(),
+  "targetHandle": zod.string().nullish()
+}).describe('A directed edge between two nodes.'))
+}),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('A full, immutable snapshot of a workflow\'s graph.')
+})
+
+
+/**
+ * Returns a workflow along with its currently active version.
+ * @summary Get a workflow
+ */
+export const GetWorkflowParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const GetWorkflowResponse = zod.object({
+  "workflow": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
+  "activeVersion": zod.union([zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "version": zod.int(),
+  "graphJson": zod.object({
+  "nodes": zod.array(zod.object({
+  "key": zod.string().describe('Stable node identifier, unique within the graph.'),
+  "type": zod.enum(['start', 'http_request', 'delay', 'if', 'end']),
+  "label": zod.string().nullish(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}).optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional().describe('Node-type-specific settings (shape depends on type).')
+}).describe('A single node placed on the canvas.')),
+  "connections": zod.array(zod.object({
+  "sourceKey": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetKey": zod.string(),
+  "targetHandle": zod.string().nullish()
+}).describe('A directed edge between two nodes.'))
+}),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('A full, immutable snapshot of a workflow\'s graph.'),zod.null()])
+})
+
+
+/**
+ * Creates a new version from the given graph and makes it the active version. Existing versions are never modified — every save is a new, incrementing version number.
+ * @summary Save a new workflow version
+ */
+export const SaveWorkflowVersionParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const SaveWorkflowVersionBody = zod.object({
+  "graph": zod.object({
+  "nodes": zod.array(zod.object({
+  "key": zod.string().describe('Stable node identifier, unique within the graph.'),
+  "type": zod.enum(['start', 'http_request', 'delay', 'if', 'end']),
+  "label": zod.string().nullish(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}).optional(),
+  "config": zod.record(zod.string(), zod.unknown()).optional().describe('Node-type-specific settings (shape depends on type).')
+}).describe('A single node placed on the canvas.')),
+  "connections": zod.array(zod.object({
+  "sourceKey": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetKey": zod.string(),
+  "targetHandle": zod.string().nullish()
+}).describe('A directed edge between two nodes.'))
+}),
+  "description": zod.string().optional()
+})
+
+export const SaveWorkflowVersionResponse = zod.object({
+  "workflow": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).'),
+  "version": zod.object({
+  "id": zod.uuid(),
+  "version": zod.int(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Version metadata without the (potentially large) graph payload.')
+})
+
+
+/**
+ * Updates name, description, tags, and/or isActive. Does not create a new version.
+ * @summary Update workflow metadata
+ */
+export const UpdateWorkflowParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const updateWorkflowBodyNameMax = 255;
+
+
+
+export const UpdateWorkflowBody = zod.object({
+  "name": zod.string().min(1).max(updateWorkflowBodyNameMax).optional(),
+  "description": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "isActive": zod.boolean().optional()
+}).describe('At least one field must be provided.')
+
+export const UpdateWorkflowResponse = zod.object({
+  "workflow": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')
+})
+
+
+/**
+ * Soft-deletes the workflow. It no longer appears in list/get responses.
+ * @summary Delete a workflow
+ */
+export const DeleteWorkflowParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const DeleteWorkflowResponse = zod.void()
+
+
+/**
+ * Returns every saved version for a workflow, most recent first.
+ * @summary List workflow versions
+ */
+export const ListWorkflowVersionsParams = zod.object({
+  "workflowId": zod.uuid()
+})
+
+export const ListWorkflowVersionsResponse = zod.object({
+  "versions": zod.array(zod.object({
+  "id": zod.uuid(),
+  "version": zod.int(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+}).describe('Version metadata without the (potentially large) graph payload.'))
+})
+
+
+/**
+ * Points the workflow's active version back at an existing version. Does not create a new version.
+ * @summary Restore a previous version
+ */
+export const RestoreWorkflowVersionParams = zod.object({
+  "workflowId": zod.uuid(),
+  "versionId": zod.uuid()
+})
+
+export const RestoreWorkflowVersionResponse = zod.object({
+  "workflow": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "description": zod.string().nullable(),
+  "tags": zod.array(zod.string()),
+  "isActive": zod.boolean(),
+  "activeVersionId": zod.uuid().nullable(),
+  "lastExecutionAt": zod.coerce.date().nullish().describe('Reserved for the execution engine (Phase 1.4). Always null for now.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workflow and its metadata (not its graph — see WorkflowVersion).')
+})
+
+
