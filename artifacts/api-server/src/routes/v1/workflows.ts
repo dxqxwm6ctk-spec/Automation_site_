@@ -39,10 +39,13 @@ const graphConnectionSchema = z.object({
   targetHandle: z.string().nullable().optional(),
 });
 
-const graphSchema = z.object({
+export const graphSchema = z.object({
   nodes: z.array(graphNodeSchema).default([]),
   connections: z.array(graphConnectionSchema).default([]),
 });
+
+/** Graph JSON shape, as persisted in `workflow_versions.graph_json`. Reused by the execution engine. */
+export type Graph = z.infer<typeof graphSchema>;
 
 const createWorkflowBodySchema = z.object({
   name: z.string().min(1, "name is required").max(255),

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { NodeDefinition } from "../types";
+import { NodeTimeoutError, type NodeDefinition } from "../types";
 
 export const httpMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
@@ -34,6 +34,78 @@ export const httpRequestConfigSchema = z.object({
 });
 export type HttpRequestConfig = z.infer<typeof httpRequestConfigSchema>;
 
+function buildUrl(url: string, queryParams: Record<string, string>): string {
+  const entries = Object.entries(queryParams);
+  if (entries.length === 0) return url;
+  const target = new URL(url);
+  for (const [key, value] of entries) target.searchParams.set(key, value);
+  return target.toString();
+}
+
+function applyAuth(headers: Record<string, string>, auth: HttpRequestAuth): void {
+  if (auth.type === "basic") {
+    headers["Authorization"] = `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString("base64")}`;
+  } else if (auth.type === "bearer") {
+    headers["Authorization"] = `Bearer ${auth.token}`;
+  }
+}
+
+/**
+ * A non-2xx HTTP response is still a *successful* node execution — the node
+ * only errors on a network-level failure (DNS, connection refused, timeout).
+ * This lets a downstream "if" node branch on status code.
+ */
+async function performRequest(
+  config: HttpRequestConfig,
+  signal: AbortSignal,
+): Promise<{ statusCode: number; headers: Record<string, string>; body: unknown }> {
+  const url = buildUrl(config.url, config.queryParams);
+  const headers: Record<string, string> = { ...config.headers };
+  applyAuth(headers, config.auth);
+  const hasBody = config.body !== "" && config.method !== "GET";
+
+  // The node's own configurable timeout (default 30s, max 5 min) is combined
+  // with the shared execution signal — whichever fires first wins. Only the
+  // node's own timer should surface as a NodeTimeoutError; if the shared
+  // signal fired instead (cancel or execution-level timeout), the engine
+  // classifies that itself, so it's left as a plain abort here.
+  const ownTimeout = AbortSignal.timeout(config.timeout);
+  const combined = AbortSignal.any([signal, ownTimeout]);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: config.method,
+      headers,
+      body: hasBody ? config.body : undefined,
+      signal: combined,
+    });
+  } catch (err) {
+    if (ownTimeout.aborted && !signal.aborted) {
+      throw new NodeTimeoutError(`HTTP request to ${url} timed out after ${config.timeout}ms`);
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+
+  const text = await response.text();
+  const contentType = response.headers.get("content-type") ?? "";
+  let body: unknown = text;
+  if (contentType.includes("application/json") && text.length > 0) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Server lied about the content type — fall back to raw text.
+      body = text;
+    }
+  }
+
+  return {
+    statusCode: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    body,
+  };
+}
+
 /** Calls an external API and captures the response. */
 export const httpRequestNode: NodeDefinition<HttpRequestConfig> = {
   id: "http_request",
@@ -53,4 +125,5 @@ export const httpRequestNode: NodeDefinition<HttpRequestConfig> = {
     timeout: 30_000,
     auth: { type: "none" },
   },
+  execute: async ({ config, signal }) => ({ output: await performRequest(config, signal) }),
 };

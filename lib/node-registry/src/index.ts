@@ -1,4 +1,12 @@
-export type { NodeCategory, NodePort, NodeDefinition } from "./types";
+export {
+  NodeTimeoutError,
+  type NodeCategory,
+  type NodePort,
+  type NodeDefinition,
+  type NodeExecutionContext,
+  type NodeExecutionResult,
+  type NodeExecutor,
+} from "./types";
 
 export {
   NODE_DEFINITIONS,

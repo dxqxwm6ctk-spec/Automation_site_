@@ -15,4 +15,5 @@ export const endNode: NodeDefinition<EndConfig> = {
   outputs: [],
   configSchema: endConfigSchema,
   defaultConfig: {},
+  execute: async ({ input }) => ({ output: input ?? null }),
 };

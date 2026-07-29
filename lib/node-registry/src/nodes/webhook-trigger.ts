@@ -32,4 +32,8 @@ export const webhookTriggerNode: NodeDefinition<WebhookTriggerConfig> = {
   outputs: [{ label: "Next" }],
   configSchema: webhookTriggerConfigSchema,
   defaultConfig: { path: "/webhook", responseMode: "immediate" },
+  // The public webhook receiver (Phase 1.5) isn't built yet. When this node
+  // is the entry point of a manually- or API-triggered execution, it just
+  // passes the trigger payload through, same as Start.
+  execute: async ({ input }) => ({ output: input ?? null }),
 };

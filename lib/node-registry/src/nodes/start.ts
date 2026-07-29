@@ -15,4 +15,7 @@ export const startNode: NodeDefinition<StartConfig> = {
   outputs: [{ label: "Next" }],
   configSchema: startConfigSchema,
   defaultConfig: {},
+  // Passes the execution's trigger payload through unchanged as the first
+  // node output.
+  execute: async ({ input }) => ({ output: input ?? null }),
 };

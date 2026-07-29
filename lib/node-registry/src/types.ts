@@ -35,4 +35,66 @@ export interface NodeDefinition<TConfig = Record<string, unknown>> {
   outputs: NodePort[];
   configSchema: ZodType<TConfig>;
   defaultConfig: TConfig;
+  /**
+   * Runs this node during execution (Phase 1.4). Optional so node-registry
+   * stays usable as a pure metadata/validation library where an executor
+   * doesn't make sense (e.g. future purely-structural node types) — but
+   * every node a workflow can actually run must define one, or the engine
+   * fails that node with an "engine_error".
+   */
+  execute?: NodeExecutor<TConfig>;
+}
+
+/**
+ * Runtime context passed to a node's `execute` function. Deliberately
+ * small: Phase 1.4 has no variable store, loop scope, or credential store,
+ * so a node has access only to its own config, the upstream node's output,
+ * and an abort signal.
+ */
+export interface NodeExecutionContext<TConfig = Record<string, unknown>> {
+  /** This node's own config, already validated against `configSchema`. */
+  config: TConfig;
+  /**
+   * Output of the upstream node. `null` for entry nodes (start/webhook
+   * trigger) — an execution's `triggerPayload` becomes this. An array when
+   * more than one live branch merges into this node.
+   */
+  input: unknown;
+  /**
+   * Aborts when the execution is cancelled or the execution-level (5 min
+   * default) timeout elapses. Nodes that do async I/O (e.g. http_request's
+   * fetch, delay's sleep) must pass this through so they can be interrupted
+   * promptly; synchronous nodes can ignore it.
+   */
+  signal: AbortSignal;
+}
+
+/**
+ * Result of running a single node. `output` becomes the downstream node's
+ * `input`. `branch` selects which outgoing connection(s) to follow —
+ * omit it for nodes with a single unconditional output (see NodePort);
+ * the "if" node is the only Phase 1.4 node that sets it, to "true" or
+ * "false", matching its output port ids.
+ */
+export interface NodeExecutionResult {
+  output: unknown;
+  branch?: string;
+}
+
+export type NodeExecutor<TConfig = Record<string, unknown>> = (
+  context: NodeExecutionContext<TConfig>,
+) => Promise<NodeExecutionResult>;
+
+/**
+ * Thrown by a node's `execute` to signal that IT (not the engine's ambient
+ * per-node or execution-level timeout) decided an operation took too long —
+ * e.g. http_request's own configurable `config.timeout`. The engine catches
+ * this to classify the execution_log/execution row as a timeout rather than
+ * a generic error.
+ */
+export class NodeTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NodeTimeoutError";
+  }
 }
