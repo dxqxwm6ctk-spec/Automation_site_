@@ -1,6 +1,6 @@
 # FlowForge — Project Status
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-07-29 (Phase 1.4 complete)_
 
 ## Where we are
 
@@ -52,13 +52,22 @@ _Last updated: 2026-07-29_
   - 19 new tests in `lib/node-registry/` (`registry.test.ts`, `validation.test.ts`); combined with the backend and frontend, **70 tests pass across the whole repo**.
   - **Bug fix:** `workflows.test.ts` had one untyped `workflow.id` (missing the `as string` cast used everywhere else in that file) feeding a Drizzle `eq()` call, which broke `pnpm run typecheck` even though the app ran fine. Fixed to match the file's existing pattern — `pnpm install`, `pnpm run typecheck`, and `pnpm run test` all now pass clean with no other changes needed.
 
+- **Phase 1.4 — Execution Engine is complete.**
+  - `POST /api/v1/workflows/:workflowId/execute` — creates an `executions` row, fires the engine fire-and-forget, returns 202 immediately. Validates the graph is runnable (single entry node, no cycles, no dangling refs) before starting.
+  - `GET /api/v1/executions` — paginated list with `workflowId` and `status` filters, keyset cursor (`after`/`limit`), and total count.
+  - `GET /api/v1/executions/:executionId` — returns execution row with all node-level `execution_logs` ordered by `startedAt`.
+  - `POST /api/v1/executions/:executionId/cancel` — aborts an in-process run via AbortController; falls back to direct DB update if no controller is registered. Returns 409 if already terminal.
+  - Engine internals (`engine/executionEngine.ts`, `engine/graphBuilder.ts`, `engine/nodeRunner.ts`): DAG walk with dependency-driven scheduling (parallel fan-out, fan-in, branch skipping), per-node `execution_logs` rows, 5-minute execution-level timeout backstop, in-process cancellation.
+  - All 6 Phase 1.3 node types have `execute` implementations: `start` (pass-through), `end` (pass-through), `http_request` (real fetch with auth/headers/timeout + AbortSignal), `delay` (sleep with AbortSignal), `if` (JS expression → true/false branch), `webhook_trigger` (pass-through).
+  - `lib/api-zod/src/index.ts` duplicate-export ambiguity fixed (`ExecuteWorkflowBody` declared in both generated sources; explicit tiebreak added).
+  - 16 new Vitest+Supertest tests in `executions.test.ts` covering all 4 endpoints, engine happy paths (instant graph, if-node branching), cancel, and 404/409 error paths. **87 tests pass across the whole repo** (19 node-registry + 7 web + 61 api-server across 4 test files).
+
 ### Not started
 - Remaining MVP node types beyond Phase 1.3's scoped set — **Schedule Trigger, Code (JS sandbox / `isolated-vm`), Set Variable, Log, Loop** — needed to reach the full node list in `replit.md`'s Product section and `docs/06-implementation-phases.md`'s Phase 1.3 (Core Nodes). The registry architecture and validation pipeline are already in place; adding a node type is now just a new file in `lib/node-registry/src/nodes/` plus a palette icon/color mapping.
 - Redis + BullMQ queue infrastructure (no `REDIS_URL` yet) — also needed before `/api/ready` can check Redis for real
 - `ENCRYPTION_KEY` secret (needed once the credential store is built — Phase 1.7)
-- Worker process / artifact for workflow execution (tracked as an open project task)
 - Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search (categories now exist — see Phase 1.3 above), and keyboard shortcuts beyond React Flow's built-in pan/zoom (copy/paste, select-all, delete-key are not wired up)
-- Phase 1.4 (Execution Engine) and everything else in Milestone 1 onward
+- Phase 1.5 and everything else in Milestone 1 onward
 
 ### Replit-specific notes
 - `docs/04-folder-structure.md` describes the target **production/self-hosted** layout (`apps/`, `packages/`, `infra/` with Docker Compose, Kubernetes, Helm). On Replit this project instead uses the pnpm-workspace template's `artifacts/` + `lib/` layout (see `replit.md`). Same architecture, different folder names — don't try to reconcile them literally.
