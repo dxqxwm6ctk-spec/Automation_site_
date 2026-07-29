@@ -1,20 +1,12 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
-
-export {}
+// MVP schema only (docs/02-database-schema.md "MVP Schema"). No workspace_id /
+// owner_id / created_by anywhere — the MVP is unauthenticated and unscoped.
+// Auth & Multi-Tenancy tables (users, workspaces, teams, api_keys, ...) and
+// Milestone 2 tables (schedules, variables) are added when those milestones ship.
+export * from "./workflows";
+export * from "./workflow-versions";
+export * from "./nodes";
+export * from "./node-connections";
+export * from "./executions";
+export * from "./execution-logs";
+export * from "./credentials";
+export * from "./webhooks";

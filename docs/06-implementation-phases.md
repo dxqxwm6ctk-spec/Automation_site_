@@ -52,15 +52,12 @@ packages/api-spec/package.json
 
 ### Phase 0.2 — Database Schema & Migrations
 
-**Goals:** All tables created; push command works; Drizzle client connected.
+**Goals:** MVP tables created; push command works; Drizzle client connected.
 
 **Dependencies:** Phase 0.1
 
 **Files to create/modify:**
 ```
-packages/db/src/schema/users.ts
-packages/db/src/schema/workspaces.ts
-packages/db/src/schema/workspace-members.ts
 packages/db/src/schema/workflows.ts
 packages/db/src/schema/workflow-versions.ts
 packages/db/src/schema/nodes.ts
@@ -68,23 +65,20 @@ packages/db/src/schema/node-connections.ts
 packages/db/src/schema/executions.ts
 packages/db/src/schema/execution-logs.ts
 packages/db/src/schema/credentials.ts
-packages/db/src/schema/variables.ts
-packages/db/src/schema/schedules.ts
 packages/db/src/schema/webhooks.ts
-packages/db/src/schema/api-keys.ts
-packages/db/src/schema/teams.ts
-packages/db/src/schema/audit-logs.ts
 packages/db/src/schema/index.ts       (re-export all)
 ```
 
+Only the 8 MVP tables from `02-database-schema.md`'s "MVP Schema" section. `users`, `workspaces`, `workspace-members`, `api-keys`, `teams`, `audit-logs` belong to the deferred Authentication & Multi-Tenancy milestone; `variables` and `schedules` belong to Milestone 2 — none of the six are created here.
+
 **Features:**
-- Complete Drizzle schema matching the database design doc
+- Complete Drizzle schema for the MVP tables, matching `02-database-schema.md` exactly (no `workspace_id`/`owner_id`/`created_by` anywhere — see that doc's "MVP note")
 - Indexes defined inline
-- `pnpm --filter @flowforge/db run push` applies schema to Postgres
+- `pnpm --filter @workspace/db run push` applies schema to Postgres
 
 **Acceptance criteria:**
-- `pnpm db:push` creates all 16 tables
-- `pnpm db:studio` opens Drizzle Studio and shows all tables
+- `pnpm --filter @workspace/db run push` creates all 8 MVP tables
+- Drizzle Studio shows all 8 tables with the expected columns and indexes
 
 **Complexity:** 🟢 Low
 
