@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Trash2, X } from "lucide-react";
 import {
   httpMethods,
+  logLevels,
   validateNodeConfig,
   webhookResponseModes,
   type FieldError,
@@ -405,6 +406,190 @@ function NodeInspectorContent({
               Connect the "True" and "False" outputs to different branches.
             </p>
           </div>
+        )}
+
+        {node.data.nodeType === "schedule_trigger" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-cron">Cron expression</Label>
+              <Input
+                id="node-cron"
+                placeholder="0 * * * *"
+                value={(config.cronExpression as string) ?? ""}
+                onChange={(event) => patchConfig({ cronExpression: event.target.value })}
+                data-testid="input-schedule-cron"
+              />
+              {errorFor("cronExpression") && (
+                <p className="text-xs text-destructive">{errorFor("cronExpression")}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                minute · hour · day · month · weekday
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-timezone">Timezone</Label>
+              <Input
+                id="node-timezone"
+                placeholder="UTC"
+                value={(config.timezone as string) ?? "UTC"}
+                onChange={(event) => patchConfig({ timezone: event.target.value })}
+                data-testid="input-schedule-timezone"
+              />
+              {errorFor("timezone") && (
+                <p className="text-xs text-destructive">{errorFor("timezone")}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {node.data.nodeType === "code" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-code">Code</Label>
+              <Textarea
+                id="node-code"
+                rows={8}
+                placeholder={"// $input holds the upstream output\nreturn $input;"}
+                value={(config.code as string) ?? ""}
+                onChange={(event) => patchConfig({ code: event.target.value })}
+                className="font-mono text-xs"
+                data-testid="textarea-code"
+              />
+              {errorFor("code") && (
+                <p className="text-xs text-destructive">{errorFor("code")}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Use <code className="rounded bg-muted px-1">$input</code> to access the upstream output.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-code-timeout">Timeout (ms)</Label>
+              <Input
+                id="node-code-timeout"
+                type="number"
+                min={1}
+                max={30000}
+                value={Number(config.timeout ?? 10_000)}
+                onChange={(event) => patchConfig({ timeout: Number(event.target.value) })}
+                data-testid="input-code-timeout"
+              />
+              {errorFor("timeout") && (
+                <p className="text-xs text-destructive">{errorFor("timeout")}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {node.data.nodeType === "loop" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-items-expr">Items expression</Label>
+              <Textarea
+                id="node-items-expr"
+                rows={3}
+                placeholder="$input.results"
+                value={(config.itemsExpression as string) ?? ""}
+                onChange={(event) => patchConfig({ itemsExpression: event.target.value })}
+                data-testid="textarea-loop-items"
+              />
+              {errorFor("itemsExpression") && (
+                <p className="text-xs text-destructive">{errorFor("itemsExpression")}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                JS expression returning an array. <code className="rounded bg-muted px-1">$input</code> is the upstream output.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-max-iter">Max iterations</Label>
+              <Input
+                id="node-max-iter"
+                type="number"
+                min={1}
+                max={10000}
+                value={Number(config.maxIterations ?? 100)}
+                onChange={(event) => patchConfig({ maxIterations: Number(event.target.value) })}
+                data-testid="input-loop-max-iterations"
+              />
+              {errorFor("maxIterations") && (
+                <p className="text-xs text-destructive">{errorFor("maxIterations")}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {node.data.nodeType === "set_variable" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-var-name">Variable name</Label>
+              <Input
+                id="node-var-name"
+                placeholder="result"
+                value={(config.variableName as string) ?? ""}
+                onChange={(event) => patchConfig({ variableName: event.target.value })}
+                data-testid="input-set-variable-name"
+              />
+              {errorFor("variableName") && (
+                <p className="text-xs text-destructive">{errorFor("variableName")}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-var-expr">Value expression</Label>
+              <Textarea
+                id="node-var-expr"
+                rows={3}
+                placeholder="$input.statusCode === 200"
+                value={(config.valueExpression as string) ?? ""}
+                onChange={(event) => patchConfig({ valueExpression: event.target.value })}
+                data-testid="textarea-set-variable-expr"
+              />
+              {errorFor("valueExpression") && (
+                <p className="text-xs text-destructive">{errorFor("valueExpression")}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Result is merged onto the output as <code className="rounded bg-muted px-1">{`{...input, [name]: value}`}</code>.
+              </p>
+            </div>
+          </>
+        )}
+
+        {node.data.nodeType === "log" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-log-message">Message</Label>
+              <Textarea
+                id="node-log-message"
+                rows={3}
+                placeholder={'Status: {{$input.statusCode}}'}
+                value={(config.message as string) ?? ""}
+                onChange={(event) => patchConfig({ message: event.target.value })}
+                data-testid="textarea-log-message"
+              />
+              {errorFor("message") && (
+                <p className="text-xs text-destructive">{errorFor("message")}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Use <code className="rounded bg-muted px-1">{"{{$input.field}}"}</code> for interpolation.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-log-level">Level</Label>
+              <Select
+                value={(config.level as string) ?? "info"}
+                onValueChange={(value) => patchConfig({ level: value })}
+              >
+                <SelectTrigger id="node-log-level" data-testid="select-log-level">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {logLevels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         )}
 
         {(node.data.nodeType === "start" || node.data.nodeType === "end") && (

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, executionLogs } from "@workspace/db";
 import { getNodeDefinition } from "@workspace/node-registry";
 import type { GraphNode } from "../lib/graph";
+import { emitNodeDone, emitNodeStart } from "../realtime/socket";
 
 export interface NodeRunOutcome {
   output: unknown;

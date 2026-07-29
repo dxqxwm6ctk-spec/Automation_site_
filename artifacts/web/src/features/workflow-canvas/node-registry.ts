@@ -1,9 +1,14 @@
 import {
+  Braces,
+  CalendarClock,
   CheckCircle2,
   Clock,
+  Code2,
   GitBranch,
   Globe,
   PlayCircle,
+  Repeat,
+  Terminal,
   Webhook,
   type LucideIcon,
 } from "lucide-react";
@@ -40,9 +45,14 @@ export interface NodeDefinition {
 const ICON_COMPONENTS: Record<string, LucideIcon> = {
   "play-circle": PlayCircle,
   webhook: Webhook,
+  "calendar-clock": CalendarClock,
   globe: Globe,
+  "code-2": Code2,
   clock: Clock,
   "git-branch": GitBranch,
+  repeat: Repeat,
+  braces: Braces,
+  terminal: Terminal,
   "check-circle-2": CheckCircle2,
 };
 
@@ -103,10 +113,20 @@ export const NODE_COLOR_CLASSES: Record<NodeTypeId, NodeColorClasses> = {
     border: "border-cyan-500/50",
     ring: "ring-cyan-500",
   },
+  [WorkflowGraphNodeType.schedule_trigger]: {
+    badge: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+    border: "border-indigo-500/50",
+    ring: "ring-indigo-500",
+  },
   [WorkflowGraphNodeType.http_request]: {
     badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
     border: "border-blue-500/50",
     ring: "ring-blue-500",
+  },
+  [WorkflowGraphNodeType.code]: {
+    badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+    border: "border-orange-500/50",
+    ring: "ring-orange-500",
   },
   [WorkflowGraphNodeType.delay]: {
     badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -117,6 +137,21 @@ export const NODE_COLOR_CLASSES: Record<NodeTypeId, NodeColorClasses> = {
     badge: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
     border: "border-violet-500/50",
     ring: "ring-violet-500",
+  },
+  [WorkflowGraphNodeType.loop]: {
+    badge: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+    border: "border-purple-500/50",
+    ring: "ring-purple-500",
+  },
+  [WorkflowGraphNodeType.set_variable]: {
+    badge: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+    border: "border-teal-500/50",
+    ring: "ring-teal-500",
+  },
+  [WorkflowGraphNodeType.log]: {
+    badge: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+    border: "border-rose-500/50",
+    ring: "ring-rose-500",
   },
   [WorkflowGraphNodeType.end]: {
     badge: "bg-slate-500/15 text-slate-600 dark:text-slate-400",

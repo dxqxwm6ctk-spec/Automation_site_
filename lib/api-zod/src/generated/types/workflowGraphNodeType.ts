@@ -12,8 +12,13 @@ export type WorkflowGraphNodeType = typeof WorkflowGraphNodeType[keyof typeof Wo
 export const WorkflowGraphNodeType = {
   start: 'start',
   webhook_trigger: 'webhook_trigger',
+  schedule_trigger: 'schedule_trigger',
   http_request: 'http_request',
+  code: 'code',
   delay: 'delay',
   if: 'if',
+  loop: 'loop',
+  set_variable: 'set_variable',
+  log: 'log',
   end: 'end',
 } as const;

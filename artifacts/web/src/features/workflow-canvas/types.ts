@@ -10,6 +10,8 @@ export interface FlowNodeData extends Record<string, unknown> {
   nodeType: WorkflowGraphNodeType;
   label: string;
   config: WorkflowGraphNodeConfig;
+  /** Live execution state — set by the execution overlay and cleared on the next run. */
+  executionState?: "running" | "success" | "error" | "skipped";
 }
 
 export type FlowNode = Node<FlowNodeData>;

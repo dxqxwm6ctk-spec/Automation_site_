@@ -1,8 +1,13 @@
 import { startNode } from "./nodes/start";
 import { webhookTriggerNode } from "./nodes/webhook-trigger";
+import { scheduleTriggerNode } from "./nodes/schedule-trigger";
 import { httpRequestNode } from "./nodes/http-request";
+import { codeNode } from "./nodes/code";
 import { delayNode } from "./nodes/delay";
 import { ifNode } from "./nodes/if";
+import { loopNode } from "./nodes/loop";
+import { setVariableNode } from "./nodes/set-variable";
+import { logNode } from "./nodes/log";
 import { endNode } from "./nodes/end";
 import type { NodeCategory, NodeDefinition } from "./types";
 
@@ -10,9 +15,14 @@ import type { NodeCategory, NodeDefinition } from "./types";
 export const NODE_DEFINITIONS: NodeDefinition[] = [
   startNode,
   webhookTriggerNode,
+  scheduleTriggerNode,
   httpRequestNode,
+  codeNode,
   delayNode,
   ifNode,
+  loopNode,
+  setVariableNode,
+  logNode,
   endNode,
 ];
 

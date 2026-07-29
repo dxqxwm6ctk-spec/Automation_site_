@@ -8,10 +8,22 @@ import {
 } from "./registry";
 
 describe("node registry", () => {
-  it("registers exactly the six Phase 1.3 node types", () => {
+  it("registers all Phase 1.3 node types", () => {
     const ids = NODE_DEFINITIONS.map((definition) => definition.id).sort();
     expect(ids).toEqual(
-      ["delay", "end", "http_request", "if", "start", "webhook_trigger"].sort(),
+      [
+        "code",
+        "delay",
+        "end",
+        "http_request",
+        "if",
+        "log",
+        "loop",
+        "schedule_trigger",
+        "set_variable",
+        "start",
+        "webhook_trigger",
+      ].sort(),
     );
   });
 
@@ -52,9 +64,13 @@ describe("node registry", () => {
 
   it("groups definitions by category", () => {
     const byCategory = listNodeDefinitionsByCategory();
-    expect(byCategory.trigger.map((d) => d.id).sort()).toEqual(["start", "webhook_trigger"]);
-    expect(byCategory.action.map((d) => d.id)).toEqual(["http_request"]);
+    expect(byCategory.trigger.map((d) => d.id).sort()).toEqual(
+      ["schedule_trigger", "start", "webhook_trigger"].sort(),
+    );
+    expect(byCategory.action.map((d) => d.id).sort()).toEqual(
+      ["code", "http_request", "log", "set_variable"].sort(),
+    );
     expect(byCategory.logic.map((d) => d.id)).toEqual(["if"]);
-    expect(byCategory.control.map((d) => d.id).sort()).toEqual(["delay", "end"]);
+    expect(byCategory.control.map((d) => d.id).sort()).toEqual(["delay", "end", "loop"].sort());
   });
 });

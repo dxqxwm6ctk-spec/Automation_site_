@@ -44,6 +44,33 @@ export {
   type HttpRequestAuth,
   type HttpMethod,
 } from "./nodes/http-request";
+export {
+  scheduleTriggerNode,
+  scheduleTriggerConfigSchema,
+  type ScheduleTriggerConfig,
+} from "./nodes/schedule-trigger";
 export { delayNode, delayConfigSchema, type DelayConfig } from "./nodes/delay";
 export { ifNode, ifConfigSchema, type IfConfig } from "./nodes/if";
+export {
+  loopNode,
+  loopConfigSchema,
+  type LoopConfig,
+} from "./nodes/loop";
+export {
+  setVariableNode,
+  setVariableConfigSchema,
+  type SetVariableConfig,
+} from "./nodes/set-variable";
+export {
+  logNode,
+  logConfigSchema,
+  logLevels,
+  type LogConfig,
+  type LogLevel,
+} from "./nodes/log";
+export {
+  codeNode,
+  codeConfigSchema,
+  type CodeConfig,
+} from "./nodes/code";
 export { endNode, endConfigSchema, type EndConfig } from "./nodes/end";
