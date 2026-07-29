@@ -1,0 +1,577 @@
+{
+  "name": "Telegram AI Product Photo",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {
+          "download": true,
+          "imageSize": "large"
+        }
+      },
+      "id": "c933062d-91d9-4e8f-8dec-3674a2043c17",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        240
+      ],
+      "webhookId": "36932b74-0dff-425c-8b17-9bfcf5d938e7",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c-photo",
+                    "leftValue": "={{ $json.message.photo }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "array",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c-cb",
+                    "leftValue": "={{ $json.callback_query }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "object",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "callback"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "other"
+        }
+      },
+      "id": "aa000001-0000-4000-8000-000000000001",
+      "name": "Route Update",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "📸 الرجاء إرسال صورة المنتج مع كتابة السعر في التعليق (مثال: سماعات 8 دينار).",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aa000002-0000-4000-8000-000000000002",
+      "name": "Reply Need Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        464
+      ],
+      "webhookId": "0007aba8-3f96-4c0f-a361-eb8c1c01d005",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = ($input.item.json.message) || {};\nreturn {\n  json: {\n    chatId: m.chat && m.chat.id,\n    caption: m.caption || '',\n    origMessageId: m.message_id\n  },\n  binary: $input.item.binary\n};\n"
+      },
+      "id": "aa000003-0000-4000-8000-000000000003",
+      "name": "Prep From Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $json.callback_query.id }}",
+        "additionalFields": {
+          "text": "🔄 جاري إعادة التوليد..."
+        }
+      },
+      "id": "aa000004-0000-4000-8000-000000000004",
+      "name": "Answer Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        304
+      ],
+      "webhookId": "f6786446-13ec-4175-b9c8-bc41459b6cfd",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cq = ($('Telegram Trigger').item.json.callback_query) || {};\nconst orig = (cq.message && cq.message.reply_to_message) || {};\nconst photos = orig.photo || [];\nconst largest = photos.length ? photos[photos.length - 1] : {};\nreturn {\n  json: {\n    fileId: largest.file_id || '',\n    caption: orig.caption || '',\n    chatId: cq.message && cq.message.chat && cq.message.chat.id,\n    origMessageId: orig.message_id\n  }\n};\n"
+      },
+      "id": "aa000005-0000-4000-8000-000000000005",
+      "name": "Get Original",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.fileId }}",
+        "additionalFields": {}
+      },
+      "id": "aa000006-0000-4000-8000-000000000006",
+      "name": "Get Original File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        848,
+        304
+      ],
+      "webhookId": "a1c91f29-cee2-40a8-85ce-1890aacd1ea8",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const g = $('Get Original').item.json;\nreturn {\n  json: {\n    chatId: g.chatId,\n    caption: g.caption,\n    origMessageId: g.origMessageId\n  },\n  binary: $input.item.binary\n};\n"
+      },
+      "id": "aa000007-0000-4000-8000-000000000007",
+      "name": "Prep From Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const json = $input.item.json;\nconst caption = json.caption || '';\nconst lines = caption.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean);\n\n// --- currency detection (default JOD) ---\nlet cur = 'JOD';\nif (/دولار|USD|\\$/i.test(caption)) cur = 'USD';\nelse if (/ريال|SAR/i.test(caption)) cur = 'SAR';\nelse if (/درهم|AED/i.test(caption)) cur = 'AED';\nelse if (/يورو|EUR|€/i.test(caption)) cur = 'EUR';\nelse if (/جنيه|GBP|£/i.test(caption)) cur = 'GBP';\nelse if (/دينار|JOD|د\\.?ا/i.test(caption)) cur = 'JOD';\n\n// --- price extraction (priority: dedicated line, currency-attached, decimal, first number) ---\nconst curWords = 'USD|EUR|GBP|JOD|AED|SAR|دينار|دولار|ريال|درهم|يورو|جنيه|د\\.?ا';\nlet priceRaw = '';\nconst lineOnly = new RegExp('^(?:[$€£]\\\\s?)?(?:' + curWords + ')?\\\\s?\\\\d{1,3}(?:[.,]\\\\d{3})*(?:[.,]\\\\d{1,2})?\\\\s?(?:' + curWords + ')?$', 'i');\nfor (const l of lines) { if (/\\d/.test(l) && lineOnly.test(l)) priceRaw = l; }\nif (!priceRaw) { const m = caption.match(new RegExp('(?:[$€£]\\\\s?\\\\d[\\\\d.,]*)|(?:\\\\d[\\\\d.,]*\\\\s?(?:' + curWords + '))', 'i')); if (m) priceRaw = m[0]; }\nif (!priceRaw) { const m = caption.match(/\\d{1,3}(?:[.,]\\d{3})*[.,]\\d{1,2}/); if (m) priceRaw = m[0]; }\nif (!priceRaw) { const m = caption.match(/\\d+(?:[.,]\\d+)?/); if (m) priceRaw = m[0]; }\n\nlet amount = priceRaw.replace(/[$€£]/g, '').replace(new RegExp('(' + curWords + ')', 'gi'), '').trim();\nconst hasPrice = !!amount;\nconst price = hasPrice ? (amount + ' ' + cur) : '';\n\n// --- product name ---\nlet name = caption;\nif (priceRaw) name = name.replace(priceRaw, ' ');\nname = name.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean)[0] || '';\nname = name.replace(/\\b(price|السعر|بسعر|ثمن)\\b\\s*[:\\-]?/gi, '').replace(/\\s{2,}/g, ' ').trim();\n\nlet nameLine;\nif (name) nameLine = '* Add the product name in a modern luxury font: ' + name;\nelse nameLine = '* Do NOT add any product name or title text. Do not write the word \"Product\" or any placeholder. Show ONLY the price.';\n\n// --- aspect ratio ---\nlet aspect = '4:5', size = '1024x1536';\nif (/1:1|مربع|سوشال|سوشيال|instagram|انستغرام|انستقرام/i.test(caption)) { aspect = '1:1'; size = '1024x1024'; }\n\nreturn {\n  json: { ...json, price, currency: cur, productName: name, nameLine, hasPrice, aspect, size, caption },\n  binary: $input.item.binary\n};\n"
+      },
+      "id": "37de3e32-f921-4d2b-8e7c-5e5988ae5fd2",
+      "name": "Extract Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-hasprice",
+              "leftValue": "={{ $json.hasPrice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "aa000008-0000-4000-8000-000000000008",
+      "name": "Has Price",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1488,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Extract Details').item.json.chatId }}",
+        "text": "💰 لقد نسيت كتابة السعر! أرسل الصورة مرة أخرى مع السعر في التعليق (مثال: 8 دينار).",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aa000009-0000-4000-8000-000000000009",
+      "name": "Reply No Price",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1712,
+        320
+      ],
+      "webhookId": "41c52440-c374-46ea-a7e2-2ad6ffeab249",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Extract Details').item.json.chatId }}",
+        "text": "⏳ جاري تجهيز إعلان منتجك... قد يستغرق حتى دقيقة.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aa00000a-0000-4000-8000-00000000000a",
+      "name": "Send Processing",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1712,
+        64
+      ],
+      "executeOnce": true,
+      "webhookId": "224c781d-b305-42c8-8ab5-e20ced9fd98a",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "edit",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-image-1"
+        },
+        "prompt": "=You are a world-class commercial product photographer and luxury advertising designer.\n\nUsing the uploaded product image as the exact reference, create a premium e-commerce advertisement while preserving the product’s original design, colors, proportions, branding, and details exactly as they appear.\n\nRequirements:\n\n* The product must remain identical to the uploaded image.\n* Remove any background and create a professional studio scene.\n* Use cinematic commercial lighting with soft shadows and realistic reflections.\n* Add premium advertising composition similar to Apple, Nike, or luxury brand campaigns.\n* Use high-end product photography quality.\n* Add subtle depth of field and realistic materials.\n* The product must be the main focus, perfectly sharp and centered.\n* Enhance the overall appearance without changing the actual product.\n* Create a clean modern background matching the product category.\n* Add elegant floating lighting effects and premium visual details.\n\nText design:\n\n{{ $('Extract Details').item.json.nameLine }}\n* Place the price prominently in a modern, sleek advertising style (clean minimal price tag / badge with elegant typography).\n* The price must be shown exactly as provided, using currency code {{ $('Extract Details').item.json.currency }}.\n* The exact price to display is: {{ $('Extract Details').item.json.price }}\n* Place all text in the empty negative space of the layout (bottom area or a clear side margin) so it NEVER overlaps or covers the product. The product must stay fully visible and sharp.\n* Do not add any extra words, labels, watermarks or placeholder text beyond what is specified above.\n\nStyle:\nUltra realistic, commercial photography, advertising campaign, studio lighting, premium branding, luxury product shot, 8K resolution, highly detailed, award-winning product photography, realistic reflections, clean composition.\n\nAspect ratio: {{ $('Extract Details').item.json.aspect }} for advertisements.",
+        "images": {
+          "values": [
+            {}
+          ]
+        },
+        "size": "={{ $('Extract Details').item.json.size }}",
+        "quality": "high",
+        "options": {
+          "background": "opaque",
+          "inputFidelity": "high"
+        }
+      },
+      "id": "d6cefc36-84d5-4715-b6e6-36f7d9b79689",
+      "name": "Generate Ad (ChatGPT)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1712,
+        192
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "n8n Connect",
+          "__aiGatewayManaged": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Extract Details').item.json.chatId }}",
+        "binaryData": true,
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔄 إعادة التوليد",
+                    "additionalFields": {
+                      "callback_data": "regen"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "caption": "={{ $('Extract Details').item.json.productName }} — {{ $('Extract Details').item.json.price }}",
+          "reply_to_message_id": "={{ $('Extract Details').item.json.origMessageId }}"
+        }
+      },
+      "id": "bdba5d94-9154-4b86-8428-d3087f820e3b",
+      "name": "Send Final Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        112
+      ],
+      "webhookId": "fac54840-5ece-4fcf-bf29-8aeb18084ff8",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Extract Details').item.json.chatId }}",
+        "text": "⚠️ عذرًا، تعذّر توليد إعلان منتجك هذه المرة. الرجاء المحاولة مرة أخرى مع صورة واضحة والسعر في التعليق.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "acfa6bc8-b934-4125-a751-65a82a4749c7",
+      "name": "Notify Failure",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        304
+      ],
+      "webhookId": "9ac27951-d3a1-4760-8df4-5951bcf31fab",
+      "credentials": {
+        "telegramApi": {
+          "id": "TqU7tEDm5Z5PEDZd",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Update": {
+      "main": [
+        [
+          {
+            "node": "Prep From Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Need Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep From Message": {
+      "main": [
+        [
+          {
+            "node": "Extract Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer Callback": {
+      "main": [
+        [
+          {
+            "node": "Get Original",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Original": {
+      "main": [
+        [
+          {
+            "node": "Get Original File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Original File": {
+      "main": [
+        [
+          {
+            "node": "Prep From Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep From Callback": {
+      "main": [
+        [
+          {
+            "node": "Extract Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Details": {
+      "main": [
+        [
+          {
+            "node": "Has Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Price": {
+      "main": [
+        [
+          {
+            "node": "Send Processing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Ad (ChatGPT)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply No Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Ad (ChatGPT)": {
+      "main": [
+        [
+          {
+            "node": "Send Final Photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "errorWorkflow": "VZ5ogbnhaSMJcjpV"
+  },
+  "versionId": "70f589b0-7f27-4519-946e-a24498c5344f",
+  "meta": {
+    "instanceId": "c567194024cbcab30a28b725718ec9a56caee80ecf96456589478a63030d45d9"
+  },
+  "nodeGroups": [],
+  "id": "H2lXQeQWpSRRy614",
+  "tags": []
+}
