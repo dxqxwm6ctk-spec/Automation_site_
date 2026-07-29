@@ -1,0 +1,160 @@
+You are a senior software architect and product engineer.
+
+I want to build a modern workflow automation platform inspired by n8n, but with my own architecture and UI. Do NOT start coding yet.
+
+Your task is to design the entire project first.
+
+Create a complete technical blueprint that includes:
+
+Product Vision
+
+* Core purpose
+* Target users
+* Key differentiators from n8n
+* MVP scope
+* Future roadmap
+
+System Architecture
+
+* Frontend architecture
+* Backend architecture
+* Workflow execution engine
+* API design
+* Database architecture
+* Worker architecture
+* Queue system
+* Scheduling system
+* Webhook system
+* Authentication
+* Authorization
+* File storage
+* Realtime updates
+* Logging
+* Monitoring
+* Error handling
+
+Technology Stack
+
+Recommend the best technologies with reasons.
+
+Database Design
+
+Design all database tables including:
+
+* users
+* workspaces
+* workflows
+* workflow_versions
+* executions
+* execution_logs
+* nodes
+* node_connections
+* credentials
+* variables
+* schedules
+* webhooks
+* api_keys
+* teams
+* permissions
+
+Include relationships and indexing strategy.
+
+Workflow Engine
+
+Explain in detail:
+
+* How workflows execute
+* Execution order
+* Branches
+* Loops
+* Parallel execution
+* Error recovery
+* Retry logic
+* Resume execution
+* Timeouts
+* Variable passing
+* Data mapping
+
+Node System
+
+Design a plugin-based node architecture.
+
+Include:
+
+* Node SDK
+* Node manifest
+* Node inputs
+* Node outputs
+* Validation
+* Versioning
+* Custom nodes
+* Marketplace support
+
+Canvas
+
+Explain how the visual editor works.
+
+Include:
+
+* Drag & Drop
+* Zoom
+* Pan
+* Connection system
+* Auto layout
+* Node grouping
+* Copy/Paste
+* Undo/Redo
+* Keyboard shortcuts
+
+Security
+
+Design enterprise-grade security:
+
+* Secrets encryption
+* API security
+* Rate limiting
+* Sandboxed code execution
+* RBAC
+* Audit logs
+* Validation
+* Input sanitization
+
+Scaling
+
+Explain how the platform scales to:
+
+* 10 users
+* 100 users
+* 10,000 users
+* 1 million workflow executions
+
+Folder Structure
+
+Design a production-ready project structure.
+
+Development Phases
+
+Break the project into small implementation phases.
+
+Each phase must include:
+
+* Goals
+* Files to create
+* Features
+* Acceptance criteria
+* Estimated complexity
+
+Deliverables
+
+Generate:
+
+1. Full architecture document.
+2. Database schema.
+3. API specification.
+4. Folder structure.
+5. Development roadmap.
+6. Phase-by-phase implementation plan.
+
+Do not generate application code.
+
+Think like a principal engineer designing a product that could compete with n8n in production.
