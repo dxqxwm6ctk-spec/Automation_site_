@@ -4,6 +4,12 @@ A developer-first, self-hostable workflow automation platform — visually build
 
 **Current status:** Milestone 0 (Foundation) in progress — see `PROJECT_STATUS.md` for what's built, what's next, and confirmed MVP scope.
 
+## Replit Setup
+
+- **Dependencies:** Run `pnpm install` from the workspace root if `node_modules` is missing.
+- **Database schema:** Run `pnpm --filter @workspace/db run push` to push the Drizzle schema to the provisioned Postgres database. `DATABASE_URL` is managed automatically by Replit — no manual setup needed.
+- **Run:** Start both managed workflows — `artifacts/api-server: API Server` and `artifacts/web: web` — or use the Run button.
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (defaults to port 8080 via `PORT` env var)
