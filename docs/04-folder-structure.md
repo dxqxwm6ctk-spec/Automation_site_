@@ -1,5 +1,7 @@
 # FlowForge — Production-Ready Folder Structure
 
+This tree covers Milestone 0 (Foundation) through Milestone 3 (Integration Nodes) — i.e. everything up to but not including Authentication & Multi-Tenancy. See "Deferred — Authentication & Multi-Tenancy" at the bottom for the paths that get added on top of this tree when that milestone ships.
+
 ```
 flowforge/
 ├── apps/
@@ -11,6 +13,11 @@ flowforge/
 │   │   │   ├── main.tsx
 │   │   │   ├── App.tsx              # Router + providers
 │   │   │   ├── index.css
+│   │   │   │
+│   │   │   ├── dashboard/           # Landing page
+│   │   │   │   ├── DashboardPage.tsx
+│   │   │   │   ├── WorkflowSummaryCards.tsx
+│   │   │   │   └── RecentExecutionsFeed.tsx
 │   │   │   │
 │   │   │   ├── canvas/              # Visual workflow editor
 │   │   │   │   ├── Canvas.tsx       # React Flow wrapper, main editor
@@ -39,20 +46,15 @@ flowforge/
 │   │   │   ├── execution/           # Execution viewer
 │   │   │   │   ├── ExecutionDetail.tsx
 │   │   │   │   ├── NodeLogCard.tsx
-│   │   │   │   ├── VariableInspector.tsx
+│   │   │   │   ├── VariableInspector.tsx    # Milestone 2
 │   │   │   │   └── ExecutionList.tsx
 │   │   │   │
 │   │   │   ├── pages/
-│   │   │   │   ├── DashboardPage.tsx
 │   │   │   │   ├── WorkflowsPage.tsx
 │   │   │   │   ├── WorkflowEditorPage.tsx   # Wraps Canvas
 │   │   │   │   ├── ExecutionsPage.tsx
 │   │   │   │   ├── CredentialsPage.tsx
-│   │   │   │   ├── VariablesPage.tsx
-│   │   │   │   ├── TeamPage.tsx
-│   │   │   │   ├── SettingsPage.tsx
-│   │   │   │   ├── AuditLogPage.tsx
-│   │   │   │   ├── LoginPage.tsx
+│   │   │   │   ├── VariablesPage.tsx        # Milestone 2
 │   │   │   │   └── NotFoundPage.tsx
 │   │   │   │
 │   │   │   ├── credentials/
@@ -60,8 +62,6 @@ flowforge/
 │   │   │   │   └── CredentialSelector.tsx
 │   │   │   │
 │   │   │   ├── hooks/
-│   │   │   │   ├── useAuth.ts
-│   │   │   │   ├── useWorkspace.ts
 │   │   │   │   └── useRealtimeExecution.ts  # Socket.io subscription
 │   │   │   │
 │   │   │   ├── lib/
@@ -84,33 +84,28 @@ flowforge/
 │   │   │   │
 │   │   │   ├── routes/
 │   │   │   │   ├── index.ts         # Router mount point
-│   │   │   │   ├── auth.ts
-│   │   │   │   ├── workspaces.ts
+│   │   │   │   ├── dashboard.ts
 │   │   │   │   ├── workflows.ts
 │   │   │   │   ├── executions.ts
 │   │   │   │   ├── webhooks.ts      # Public webhook receiver
-│   │   │   │   ├── schedules.ts
+│   │   │   │   ├── schedules.ts     # Milestone 2
 │   │   │   │   ├── credentials.ts
-│   │   │   │   ├── variables.ts
-│   │   │   │   ├── nodes.ts
-│   │   │   │   ├── api-keys.ts
-│   │   │   │   ├── teams.ts
-│   │   │   │   └── audit-logs.ts
+│   │   │   │   ├── variables.ts     # Milestone 2
+│   │   │   │   └── nodes.ts
 │   │   │   │
 │   │   │   ├── services/
 │   │   │   │   ├── WorkflowService.ts
 │   │   │   │   ├── ExecutionService.ts
 │   │   │   │   ├── CredentialService.ts
-│   │   │   │   ├── SchedulerService.ts
+│   │   │   │   ├── SchedulerService.ts    # Milestone 2
 │   │   │   │   ├── WebhookService.ts
 │   │   │   │   ├── NodeRegistryService.ts
-│   │   │   │   ├── AuditService.ts
+│   │   │   │   ├── DashboardService.ts
 │   │   │   │   ├── StorageService.ts
 │   │   │   │   └── NotificationService.ts
 │   │   │   │
 │   │   │   ├── middlewares/
-│   │   │   │   ├── auth.ts          # JWT + API key validation
-│   │   │   │   ├── requireRole.ts   # RBAC enforcement
+│   │   │   │   ├── identifyActor.ts # No-op actor-context placeholder — see below
 │   │   │   │   ├── rateLimiter.ts   # Redis sliding window
 │   │   │   │   ├── errorHandler.ts  # Global error → Problem JSON
 │   │   │   │   └── requestLogger.ts
@@ -121,7 +116,6 @@ flowforge/
 │   │   │   │
 │   │   │   └── lib/
 │   │   │       ├── crypto.ts        # AES-256-GCM encrypt/decrypt
-│   │   │       ├── jwt.ts
 │   │   │       ├── redis.ts
 │   │   │       ├── logger.ts        # Pino singleton
 │   │   │       └── queue.ts         # BullMQ queue definitions
@@ -147,7 +141,7 @@ flowforge/
 │       │   │
 │       │   ├── processors/
 │       │   │   ├── executionProcessor.ts  # BullMQ job handler
-│       │   │   └── scheduleProcessor.ts   # Cron job handler
+│       │   │   └── scheduleProcessor.ts   # Cron job handler (Milestone 2)
 │       │   │
 │       │   └── lib/
 │       │       ├── redis.ts
@@ -165,7 +159,7 @@ flowforge/
 │   │   │   ├── BaseNode.ts
 │   │   │   └── helpers/
 │   │   │       ├── http.ts
-│   │   │       ├── auth.ts
+│   │   │       ├── auth.ts          # Credential-based auth helpers for node authors
 │   │   │       └── data.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -175,7 +169,7 @@ flowforge/
 │   │   │   ├── index.ts
 │   │   │   ├── triggers/
 │   │   │   │   ├── WebhookTrigger.ts
-│   │   │   │   ├── ScheduleTrigger.ts
+│   │   │   │   ├── ScheduleTrigger.ts    # Milestone 2
 │   │   │   │   └── ManualTrigger.ts
 │   │   │   └── actions/
 │   │   │       ├── HttpRequest.ts
@@ -188,7 +182,7 @@ flowforge/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   ├── nodes-integrations/          # Integration nodes (v1.1+)
+│   ├── nodes-integrations/          # Integration nodes (Milestone 3)
 │   │   ├── src/
 │   │   │   ├── slack/
 │   │   │   ├── github/
@@ -204,17 +198,16 @@ flowforge/
 │   │   │   ├── client.ts            # pg pool + Drizzle instance
 │   │   │   └── schema/
 │   │   │       ├── index.ts         # re-exports all tables
-│   │   │       ├── users.ts
-│   │   │       ├── workspaces.ts
 │   │   │       ├── workflows.ts
+│   │   │       ├── workflow-versions.ts
+│   │   │       ├── nodes.ts
+│   │   │       ├── node-connections.ts
 │   │   │       ├── executions.ts
+│   │   │       ├── execution-logs.ts
 │   │   │       ├── credentials.ts
-│   │   │       ├── variables.ts
-│   │   │       ├── schedules.ts
 │   │   │       ├── webhooks.ts
-│   │   │       ├── api-keys.ts
-│   │   │       ├── teams.ts
-│   │   │       └── audit-logs.ts
+│   │   │       ├── schedules.ts     # Milestone 2
+│   │   │       └── variables.ts     # Milestone 2
 │   │   ├── drizzle.config.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -263,7 +256,8 @@ flowforge/
 │   ├── 03-api-specification.md
 │   ├── 04-folder-structure.md       # This file
 │   ├── 05-development-roadmap.md
-│   └── 06-implementation-phases.md
+│   ├── 06-implementation-phases.md
+│   └── 07-workflow-engine.md
 │
 ├── .github/
 │   └── workflows/
@@ -298,18 +292,65 @@ flowforge/
 - `apps/*` are leaf packages that import from packages but do not emit
 - Root `tsconfig.json` references all packages (solution build)
 
+### The `identifyActor` seam
+`apps/api/src/middlewares/identifyActor.ts` runs on every request in the MVP. It currently does one thing: attach a hardcoded "local user" actor context to `req.context` and call `next()` — no token check, no lookup. Route handlers and services already read the actor from `req.context` instead of assuming a single global user, so when the Authentication & Multi-Tenancy milestone ships, this file is replaced with real JWT/session verification and nothing downstream has to change shape.
+
 ### Environment variables
-See `.env.example` for full list. Critical vars:
+See `.env.example` for full list. MVP-required vars:
 ```
 DATABASE_URL=
 REDIS_URL=
-ENCRYPTION_KEY=          # 32 hex bytes, AES-256 key
-JWT_SECRET=
-JWT_REFRESH_SECRET=
+ENCRYPTION_KEY=          # 32 hex bytes, AES-256 key (credential encryption)
 S3_BUCKET=
 S3_ENDPOINT=             # empty = AWS, set for MinIO
-SESSION_SECRET=
+
+# Added by the Authentication & Multi-Tenancy milestone — not read by the MVP:
+# JWT_SECRET=
+# JWT_REFRESH_SECRET=
+# SESSION_SECRET=
 ```
 
 ### Node execution isolation
-Custom `Code` nodes run in `isolated-vm`; all other node types run in the worker process directly. Node packages are loaded at worker startup from `@flowforge/nodes-core` and optionally `@flowforge/nodes-integrations`.
+Custom `Code` nodes run in `isolated-vm`; all other node types run in the worker process directly. Node packages are loaded at worker startup from `@flowforge/nodes-core` and, from Milestone 3 onward, `@flowforge/nodes-integrations`.
+
+---
+
+## Deferred — Authentication & Multi-Tenancy
+
+Paths added on top of the tree above when that milestone ships. Nothing above is deleted or renamed to make room for these — this is a purely additive layer.
+
+```
+apps/web/src/pages/LoginPage.tsx
+apps/web/src/pages/RegisterPage.tsx
+apps/web/src/pages/SettingsPage.tsx        # workspace config, team management, API keys
+apps/web/src/pages/TeamPage.tsx
+apps/web/src/pages/AuditLogPage.tsx
+apps/web/src/hooks/useAuth.ts
+apps/web/src/hooks/useWorkspace.ts
+
+apps/api/src/routes/auth.ts
+apps/api/src/routes/workspaces.ts
+apps/api/src/routes/teams.ts
+apps/api/src/routes/api-keys.ts
+apps/api/src/routes/audit-logs.ts
+apps/api/src/services/AuditService.ts
+apps/api/src/services/WorkspaceService.ts
+apps/api/src/services/TeamService.ts
+apps/api/src/services/ApiKeyService.ts
+apps/api/src/middlewares/auth.ts           # replaces identifyActor.ts
+apps/api/src/middlewares/requireRole.ts    # RBAC enforcement
+apps/api/src/lib/jwt.ts
+apps/api/src/lib/oidc.ts
+
+packages/db/src/schema/users.ts
+packages/db/src/schema/workspaces.ts
+packages/db/src/schema/workspace-members.ts
+packages/db/src/schema/teams.ts
+packages/db/src/schema/team-members.ts
+packages/db/src/schema/permissions.ts
+packages/db/src/schema/api-keys.ts
+packages/db/src/schema/audit-logs.ts
+packages/db/src/schema/refresh-tokens.ts
+
+scripts/migrate-to-multi-tenant.ts         # additive migration + backfill (see 02-database-schema.md)
+```

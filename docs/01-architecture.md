@@ -22,13 +22,19 @@ FlowForge is a developer-first, self-hostable workflow automation platform that 
 6. **OpenAPI-generated SDK** — every node type is also an API-callable service; third parties can invoke individual nodes programmatically
 
 ### MVP Scope
-- Visual canvas with drag-and-drop node editing
-- Core trigger nodes: Webhook, Schedule (cron), Manual
-- Core action nodes: HTTP Request, Code (JS), Condition/Branch, Loop, Set Variable, Log
-- Credential store with AES-256 encryption
-- Execution history with per-node logs
-- Single-user local deployment with optional multi-user mode
-- REST API for headless workflow management
+The MVP is a **single-user, local-first workspace** — no accounts, no login, no multi-tenancy. Every workflow, credential, and execution lives in one shared database with no ownership field. The product surface is deliberately narrow:
+- Dashboard — at-a-glance summary of workflows and recent execution activity
+- Workflow list — browse, search, create, delete workflows
+- Workflow editor with a React Flow canvas — drag-and-drop node editing
+- Node system — trigger nodes (Manual, Webhook) and action nodes (HTTP Request, Code, Condition/Branch, Loop, Set Variable, Log)
+- Workflow execution engine — DAG execution, branches, loops, retries, timeouts
+- Execution logs — per-node input/output trace, real-time status
+- Save and load workflows — versioned graph persistence
+- Credential store with AES-256 encryption (flat, unscoped — no ownership)
+
+**Explicitly excluded from MVP** (deferred to the Authentication & Multi-Tenancy milestone — see `05-development-roadmap.md`): user accounts, login/registration, JWT/sessions, RBAC, permissions, teams, workspaces-as-a-tenant-boundary, API keys, audit logs, OIDC/SAML. The architecture is designed so these can be added later as an additive migration rather than a rewrite — see "Forward-Compatible Design for Future Authentication" below.
+
+Because there is no auth in the MVP, it is intended to run on `localhost` or inside a trusted private network only — the REST API has no access control and must not be exposed to the public internet until the auth milestone ships.
 
 ### Future Roadmap
 | Phase | Theme | Examples |
@@ -64,7 +70,7 @@ FlowForge is a developer-first, self-hostable workflow automation platform that 
 ┌────────▼──────────────────────▼────────────────────────────────────────────┐
 │                         Core Services                                        │
 │  WorkflowService  ExecutionService  CredentialService  SchedulerService     │
-│  WebhookService   NodeRegistryService  AuditService    NotificationService  │
+│  WebhookService   NodeRegistryService   NotificationService  DashboardService │
 └────────┬──────────────────────────────────────────────────────────────────-─┘
          │
 ┌────────▼──────────────────────────────────────────────────────────────────┐
@@ -94,10 +100,11 @@ FlowForge is a developer-first, self-hostable workflow automation platform that 
 **Real-time:** Socket.io client — subscribes to execution events per workflow run
 
 Key modules:
+- `dashboard/` — workflow summary cards, recent execution activity feed
 - `canvas/` — React Flow wrapper, custom nodes, edge routing, mini-map
 - `execution/` — run panel, per-node log viewer, variable inspector
 - `credentials/` — encrypted form, masked display
-- `settings/` — workspace config, team management, API keys
+- `settings/` *(deferred)* — workspace config, team management, API keys — added with the Authentication & Multi-Tenancy milestone
 
 ### Backend Architecture
 
@@ -105,12 +112,12 @@ Key modules:
 **Framework:** Express 5 with async error propagation  
 **Validation:** Zod v4 at every request/response boundary  
 **ORM:** Drizzle ORM (type-safe, thin abstraction over pg)  
-**Auth:** JWT (access + refresh tokens) + optional OIDC/SAML
+**Auth:** None in the MVP (single local user, unauthenticated API) — JWT + optional OIDC/SAML is fully designed but deferred to the Authentication & Multi-Tenancy milestone
 
 Service responsibilities:
 - `WorkflowService` — CRUD, versioning, activation/deactivation
 - `ExecutionService` — enqueue, status updates, log streaming
-- `CredentialService` — encrypt/decrypt, scope checks, audit
+- `CredentialService` — encrypt/decrypt, mask on read (flat store — no ownership scoping in MVP)
 - `SchedulerService` — cron expression parsing, next-run calculation, missed-run recovery
 - `WebhookService` — URL generation, HMAC verification, routing to workflow
 - `NodeRegistryService` — load built-in + custom node descriptors, validate manifests
@@ -125,8 +132,8 @@ Execution happens inside a separate `execution-engine` process (or worker). The 
 
 REST API with OpenAPI 3.1 spec as source of truth. All endpoints versioned under `/api/v1/`.
 
-Key resource groups:
-- `POST /api/v1/auth/*` — login, refresh, OIDC callback
+Key resource groups (MVP — all flat, unauthenticated):
+- `GET /api/v1/dashboard` — workflow summary + recent execution activity
 - `GET|POST|PUT|DELETE /api/v1/workflows` — workflow CRUD
 - `GET|POST /api/v1/workflows/:id/executions` — trigger + list runs
 - `GET /api/v1/executions/:id` — execution detail + logs
@@ -134,6 +141,8 @@ Key resource groups:
 - `GET|POST|DELETE /api/v1/credentials` — credential management
 - `GET /api/v1/nodes` — available node types
 - `GET /api/v1/ws/executions/:id` — WebSocket upgrade for live events
+
+`POST /api/v1/auth/*` and workspace/team/API-key/audit-log routes are deferred to the Authentication & Multi-Tenancy milestone — see `03-api-specification.md`.
 
 ### Database Architecture
 
@@ -190,14 +199,18 @@ Missed runs (server was down): on startup, any schedule with `next_run_at` in th
 4. On receipt: validate, enqueue to `webhooks` queue with high priority, return `202 Accepted` immediately (response body optionally configured to wait for workflow output — "synchronous webhook mode").
 5. Request body, headers, and query params are injected as the first node's output payload.
 
-### Authentication
+### Authentication *(deferred — Authentication & Multi-Tenancy milestone)*
+
+**Not implemented in the MVP.** The MVP API is unauthenticated by design and must only run on `localhost` or inside a trusted private network. The design below is locked in now so it can be built later as an additive milestone without reshaping the MVP:
 
 - **JWT access tokens** (15 min TTL) + **refresh tokens** (30-day, stored server-side in `refresh_tokens` table for revocation)
 - **API keys** — long-lived tokens stored as `sha256(key)`, scoped to resource types
 - **OIDC** — optional, pluggable provider (Google, Okta, Auth0)
 - **SAML 2.0** — enterprise tier, via `passport-saml`
 
-### Authorization
+### Authorization *(deferred — Authentication & Multi-Tenancy milestone)*
+
+**Not implemented in the MVP.** Every workflow, credential, and execution is globally readable and writable via the API — there are no roles, no permission checks, and no workspace boundary. The RBAC model below is the target design for when authentication ships:
 
 Role-Based Access Control (RBAC) at workspace level:
 
@@ -209,6 +222,16 @@ Role-Based Access Control (RBAC) at workspace level:
 | Viewer | Read-only access to workflows and execution history |
 
 Resource-level overrides: individual workflows can be locked to "owner-only edit".
+
+### Forward-Compatible Design for Future Authentication
+
+The MVP is intentionally shaped so authentication and multi-tenancy can be layered on later as a purely additive migration, not a rewrite:
+
+1. **No premature schema columns.** MVP tables (`workflows`, `credentials`, `executions`, `webhooks`, etc.) carry no `workspace_id`, `owner_id`, or `created_by` columns. When auth ships, these are added as nullable columns, backfilled against one seeded "Local Workspace" record, then flipped to `NOT NULL` — see `02-database-schema.md`.
+2. **Service methods accept a `context` parameter from day one.** Every service method (`WorkflowService.list(context, ...)`, `ExecutionService.get(context, ...)`, etc.) takes an actor/tenant context object as its first argument, even though the MVP implementation ignores its contents. Call sites never change shape when auth arrives — only what the context carries and how services check it changes.
+3. **Flat API routes, not tenant-prefixed ones.** Routes stay at `/api/v1/workflows`, never `/api/v1/workspaces/:id/workflows`. Tenant scoping is resolved server-side from the authenticated actor, not the URL, so route paths and frontend API clients don't change when auth is introduced.
+4. **A no-op `identifyActor` middleware ships in the MVP API skeleton.** It currently attaches a hardcoded "local user" context to every request; this is the single seam that gets replaced with real JWT/session verification later, without touching route handlers or services.
+5. **Additive-only migration.** Bringing in auth means adding new tables (`users`, `workspaces`, `workspace_members`, `teams`, `permissions`, `api_keys`, `audit_logs`, `refresh_tokens`) and nullable columns on existing tables — never renaming or restructuring MVP tables.
 
 ### File Storage
 
@@ -225,7 +248,7 @@ Large execution payloads (>100 KB) are offloaded from Postgres to an S3-compatib
 
 **Application logging:** Pino (structured JSON, piped to stdout for log aggregators)  
 **Execution logging:** per-node records in `execution_logs` Postgres table  
-**Audit logging:** `audit_logs` table, append-only, captures actor, action, target, diff, IP
+**Audit logging:** *(deferred — not in MVP)* `audit_logs` table, append-only, captures actor, action, target, diff, IP — requires an authenticated actor to attribute entries to
 
 Log levels: `debug`, `info`, `warn`, `error`. Production default: `info`.
 
@@ -260,7 +283,7 @@ All errors extend a base `AppError` class with `code`, `statusCode`, `context`. 
 | ORM | Drizzle ORM | Type-safe, zero-overhead, Postgres-native |
 | Database | PostgreSQL 16 | ACID, JSONB for flexible payloads, mature ecosystem |
 | Queue | BullMQ + Redis 7 | Reliable job queues with delayed jobs, priority, retries |
-| Auth | JWT + OIDC | Stateless access tokens; pluggable enterprise SSO |
+| Auth | JWT + OIDC *(deferred — not in MVP)* | Stateless access tokens; pluggable enterprise SSO — designed now, built in the Authentication & Multi-Tenancy milestone |
 | Code sandbox | vm2 / isolated-vm | V8 isolate per code node; no process access |
 | Real-time | Socket.io | Rooms, namespaces; falls back to polling |
 | Logging | Pino | 5x faster than Winston; structured JSON output |
@@ -282,7 +305,7 @@ All errors extend a base `AppError` class with `code`, `statusCode`, `context`. 
 ### API Security
 - HTTPS enforced at Nginx layer; HSTS header set
 - CORS: strict allowlist of origins
-- All endpoints require valid JWT except webhook entry points and health checks
+- **MVP: no JWT/session check on any endpoint.** The API is unauthenticated by design and must run only on `localhost` or a trusted private network — never exposed to the public internet before the Authentication & Multi-Tenancy milestone ships. Once auth lands, all endpoints require a valid JWT except webhook entry points and health checks.
 - Request size limit: 10 MB (configurable)
 
 ### Rate Limiting
@@ -296,15 +319,16 @@ All errors extend a base `AppError` class with `code`, `statusCode`, `context`. 
 - No `require`/`import` of external modules; only a curated stdlib injected (`fetch`, `JSON`, `crypto`)
 - Worker process itself runs as non-root with seccomp profile in production Docker
 
-### RBAC
+### RBAC *(deferred — not in MVP)*
 - Described in Authorization section above
-- Middleware `requireRole(role)` checked per route
-- Database queries always scoped to `workspace_id` of the authenticated user
+- Middleware `requireRole(role)` checked per route — introduced with the Authentication & Multi-Tenancy milestone
+- Database queries always scoped to `workspace_id` of the authenticated user, once `workspace_id` exists on each table
 
-### Audit Logs
+### Audit Logs *(deferred — not in MVP)*
 - Append-only table; no `UPDATE` or `DELETE` permitted at application level
 - Records: actor user ID, IP, action verb, resource type + ID, before/after JSON diff, timestamp
 - Exported to SIEM via webhook or S3 dump
+- No audit trail exists in the MVP — there is no authenticated actor to attribute actions to
 
 ### Validation & Input Sanitization
 - Zod schemas at every API boundary — never trust raw `req.body`
@@ -316,6 +340,8 @@ All errors extend a base `AppError` class with `code`, `statusCode`, `context`. 
 ---
 
 ## Scaling Strategy
+
+*This ladder assumes the Authentication & Multi-Tenancy milestone has already shipped — "Users" below means authenticated tenant users. The unauthenticated MVP is a single-instance, single-user local workspace and sits outside this scaling discussion.*
 
 ### 10 Users
 - Single Docker Compose stack: 1× API server, 1× worker, 1× Postgres, 1× Redis
