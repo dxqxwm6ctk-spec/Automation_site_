@@ -1,0 +1,1 @@
+- [FlowForge MVP scope & milestone order](flowforge-mvp-scope.md) — MVP is unauth/single-tenant by design; auth lands later as Milestone 4, after Integration Nodes (Milestone 3).

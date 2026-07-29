@@ -181,73 +181,11 @@ infra/docker-compose.yml
 
 ---
 
-### Phase 1.1 — Authentication
-
-**Goals:** Users can register, log in, and receive JWT tokens.
-
-**Dependencies:** Phase 0.3, 0.2
-
-**Files to create:**
-```
-apps/api/src/routes/auth.ts
-apps/api/src/services/AuthService.ts
-apps/api/src/middlewares/auth.ts          (JWT validation)
-apps/web/src/pages/LoginPage.tsx
-apps/web/src/pages/RegisterPage.tsx
-apps/web/src/hooks/useAuth.ts
-```
-
-**Features:**
-- `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
-- Argon2 password hashing
-- JWT access (15 min) + refresh token (30 days, server-side record)
-- `requireAuth` middleware
-- Frontend: login/register forms with React Hook Form + Zod
-
-**Acceptance criteria:**
-- Register → receive access + refresh tokens
-- Access token expires → refresh → new tokens issued
-- Logout → refresh token revoked; re-use returns 401
-
-**Complexity:** 🟡 Medium
-
----
-
-### Phase 1.2 — Workspaces & Members
-
-**Goals:** Personal workspace auto-created at registration; basic member management.
-
-**Dependencies:** Phase 1.1
-
-**Files to create:**
-```
-apps/api/src/routes/workspaces.ts
-apps/api/src/services/WorkflowService.ts   (partial — workspace CRUD)
-apps/api/src/middlewares/requireRole.ts
-apps/web/src/hooks/useWorkspace.ts
-apps/web/src/pages/SettingsPage.tsx         (workspace name/description)
-```
-
-**Features:**
-- Auto-create workspace on register
-- `GET /workspaces`, `POST /workspaces`, `PATCH /:id`, `DELETE /:id`
-- Member invite by email (no email sending yet — return invite link in response)
-- RBAC middleware; role stored in `workspace_members`
-
-**Acceptance criteria:**
-- New user has a workspace after registration
-- Owner can invite; invitee can accept via link; invitee has correct role
-- Viewer cannot PATCH workspace → 403
-
-**Complexity:** 🟡 Medium
-
----
-
-### Phase 1.3 — Workflow CRUD + Versioning
+### Phase 1.1 — Workflow CRUD + Versioning
 
 **Goals:** Workflows can be created, listed, saved, and versioned.
 
-**Dependencies:** Phase 1.2
+**Dependencies:** Phase 0.2, Phase 0.3
 
 **Files to create:**
 ```
@@ -272,11 +210,11 @@ apps/web/src/pages/WorkflowEditorPage.tsx   (shell only)
 
 ---
 
-### Phase 1.4 — Visual Canvas
+### Phase 1.2 — Visual Canvas
 
 **Goals:** Users can build a workflow graph visually and save it.
 
-**Dependencies:** Phase 1.3
+**Dependencies:** Phase 1.1
 
 **Files to create:**
 ```
@@ -315,11 +253,11 @@ apps/web/src/canvas/hooks/useAutoLayout.ts
 
 ---
 
-### Phase 1.5 — Core Nodes
+### Phase 1.3 — Core Nodes
 
 **Goals:** 7 MVP nodes usable in the canvas and executable by the engine.
 
-**Dependencies:** Phase 1.4
+**Dependencies:** Phase 1.2
 
 **Files to create:**
 ```
@@ -354,11 +292,11 @@ apps/api/src/services/NodeRegistryService.ts
 
 ---
 
-### Phase 1.6 — Execution Engine
+### Phase 1.4 — Execution Engine
 
 **Goals:** Workflows execute end-to-end; node logs are persisted.
 
-**Dependencies:** Phase 1.5, Phase 0.4
+**Dependencies:** Phase 1.3, Phase 0.4
 
 **Files to create:**
 ```
@@ -395,11 +333,11 @@ apps/api/src/services/ExecutionService.ts
 
 ---
 
-### Phase 1.7 — Webhooks
+### Phase 1.5 — Webhooks
 
 **Goals:** External systems can trigger workflows via HTTP webhook.
 
-**Dependencies:** Phase 1.6
+**Dependencies:** Phase 1.4
 
 **Files to create:**
 ```
@@ -422,11 +360,11 @@ apps/web/src/pages/* (webhook URL display in canvas panel)
 
 ---
 
-### Phase 1.8 — Real-time Execution UI
+### Phase 1.6 — Real-time Execution UI
 
 **Goals:** Users see node status update live as the workflow runs.
 
-**Dependencies:** Phase 1.6, Phase 1.7
+**Dependencies:** Phase 1.4, Phase 1.5
 
 **Files to create:**
 ```
@@ -455,11 +393,11 @@ apps/web/src/canvas/panels/ExecutionPanel.tsx
 
 ---
 
-### Phase 1.9 — Credential Store
+### Phase 1.7 — Credential Store
 
 **Goals:** Credentials stored encrypted; usable in HTTP Request node.
 
-**Dependencies:** Phase 1.1
+**Dependencies:** Phase 0.2, Phase 0.3
 
 **Files to create:**
 ```
@@ -516,63 +454,83 @@ apps/web/src/pages/CredentialsPage.tsx
 
 ---
 
-## Milestone 3 — Teams & RBAC
+## Milestone 3 — Integration Nodes
 
-### Phase 3.1 — Team Management & Fine-grained RBAC
-
-**Files to create:** `apps/api/src/routes/teams.ts`, `apps/api/src/services/TeamService.ts`, permissions table service + middleware, `apps/web/src/pages/TeamPage.tsx`
-
-**Complexity:** 🟡 Medium
-
-### Phase 3.2 — API Keys
-
-**Files to create:** `apps/api/src/routes/api-keys.ts`, `apps/api/src/services/ApiKeyService.ts`, scope enforcement in `auth.ts` middleware, UI in settings page
-
-**Complexity:** 🟢 Low
-
-### Phase 3.3 — Audit Logs
-
-**Files to create:** `apps/api/src/services/AuditService.ts` (middleware hook), `apps/api/src/routes/audit-logs.ts`, `apps/web/src/pages/AuditLogPage.tsx`
-
-**Complexity:** 🟢 Low
-
-### Phase 3.4 — OIDC Login
-
-**Files to create:** OIDC routes in `auth.ts`, `apps/api/src/lib/oidc.ts`, frontend OIDC button on login page
-
-**Complexity:** 🟡 Medium
-
----
-
-## Milestone 4 — Integration Nodes
-
-### Phase 4.1 — Node SDK Public API + Manifest Validator
+### Phase 3.1 — Node SDK Public API + Manifest Validator
 
 **Files:** `packages/node-sdk` final public API; `apps/api/src/services/NodeRegistryService.ts` manifest validation
 
 **Complexity:** 🟡 Medium
 
-### Phase 4.2 — OAuth2 Credential Type
+### Phase 3.2 — OAuth2 Credential Type
 
 **Files:** `packages/nodes-core/src/credentials/OAuth2.ts`; token refresh background job; frontend OAuth2 flow
 
 **Complexity:** 🔴 High
 
-### Phase 4.3 — Integration Nodes (per-node phases, parallelize across engineers)
+### Phase 3.3 — Integration Nodes (per-node phases, parallelize across engineers)
 
 Each integration is its own sub-phase:
-- 4.3a Slack — `chat.postMessage`, `channels.list` (🟢)
-- 4.3b GitHub — webhook events, create issue, list PRs (🟡)
-- 4.3c Stripe — payment intent, customer lookup (🟡)
-- 4.3d Postgres — query, insert, update (🟡)
-- 4.3e OpenAI — chat completion, embeddings (🟢)
+- 3.3a Slack — `chat.postMessage`, `channels.list` (🟢)
+- 3.3b GitHub — webhook events, create issue, list PRs (🟡)
+- 3.3c Stripe — payment intent, customer lookup (🟡)
+- 3.3d Postgres — query, insert, update (🟡)
+- 3.3e OpenAI — chat completion, embeddings (🟢)
 - ... (remaining integrations follow same pattern)
 
-### Phase 4.4 — Custom Node Upload
+### Phase 3.4 — Custom Node Upload
 
 **Files:** Upload endpoint + zip validator + dynamic node loader in worker
 
 **Complexity:** 🔴 High
+
+---
+
+## Milestone 4 — Authentication & Multi-Tenancy
+
+### Phase 4.1 — Authentication
+
+**Goals:** Users can register, log in, and receive JWT tokens.
+
+**Files to create:** `apps/api/src/routes/auth.ts`, `apps/api/src/services/AuthService.ts`, `apps/api/src/middlewares/auth.ts` (replaces the MVP's no-op `identifyActor.ts`), `apps/web/src/pages/LoginPage.tsx`, `apps/web/src/pages/RegisterPage.tsx`, `apps/web/src/hooks/useAuth.ts`
+
+**Features:** `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`; Argon2 password hashing; JWT access (15 min) + refresh token (30 days, server-side record); frontend login/register forms
+
+**Complexity:** 🟡 Medium
+
+### Phase 4.2 — Workspaces & Members + Additive Migration
+
+**Goals:** Every existing MVP row gains an owner without a rewrite, per the additive migration sketch in `02-database-schema.md`.
+
+**Files to create:** `apps/api/src/routes/workspaces.ts`, `apps/api/src/services/WorkspaceService.ts`, `apps/api/src/middlewares/requireRole.ts`, `apps/web/src/hooks/useWorkspace.ts`, `apps/web/src/pages/SettingsPage.tsx`, `scripts/migrate-to-multi-tenant.ts`
+
+**Features:** Auto-create workspace on register; workspace CRUD; member invite by email; run the additive migration (nullable columns → backfill onto a seeded default workspace → `NOT NULL`) so existing workflows/credentials/executions/webhooks survive untouched
+
+**Complexity:** 🟡 Medium
+
+### Phase 4.3 — Team Management & Fine-grained RBAC
+
+**Files to create:** `apps/api/src/routes/teams.ts`, `apps/api/src/services/TeamService.ts`, permissions table service + middleware, `apps/web/src/pages/TeamPage.tsx`
+
+**Complexity:** 🟡 Medium
+
+### Phase 4.4 — API Keys
+
+**Files to create:** `apps/api/src/routes/api-keys.ts`, `apps/api/src/services/ApiKeyService.ts`, scope enforcement in `auth.ts` middleware, UI in settings page
+
+**Complexity:** 🟢 Low
+
+### Phase 4.5 — Audit Logs
+
+**Files to create:** `apps/api/src/services/AuditService.ts` (middleware hook), `apps/api/src/routes/audit-logs.ts`, `apps/web/src/pages/AuditLogPage.tsx`
+
+**Complexity:** 🟢 Low
+
+### Phase 4.6 — OIDC Login
+
+**Files to create:** OIDC routes in `auth.ts`, `apps/api/src/lib/oidc.ts`, frontend OIDC button on login page
+
+**Complexity:** 🟡 Medium
 
 ---
 
@@ -607,18 +565,16 @@ Each integration is its own sub-phase:
 | 0.3 | Foundation | API skeleton + health | 🟢 |
 | 0.4 | Foundation | Queue infrastructure | 🟡 |
 | 0.5 | Foundation | Docker Compose + CI | 🟢 |
-| 1.1 | MVP | Authentication | 🟡 |
-| 1.2 | MVP | Workspaces & members | 🟡 |
-| 1.3 | MVP | Workflow CRUD + versioning | 🟡 |
-| 1.4 | MVP | Visual canvas | 🔴 |
-| 1.5 | MVP | Core nodes | 🟡 |
-| 1.6 | MVP | Execution engine | 🔴 |
-| 1.7 | MVP | Webhooks | 🟡 |
-| 1.8 | MVP | Real-time execution UI | 🔴 |
-| 1.9 | MVP | Credential store | 🟡 |
+| 1.1 | MVP | Workflow CRUD + versioning | 🟡 |
+| 1.2 | MVP | Visual canvas | 🔴 |
+| 1.3 | MVP | Core nodes | 🟡 |
+| 1.4 | MVP | Execution engine | 🔴 |
+| 1.5 | MVP | Webhooks | 🟡 |
+| 1.6 | MVP | Real-time execution UI | 🔴 |
+| 1.7 | MVP | Credential store | 🟡 |
 | 2.x | Scheduling | Scheduler + variables + retry | 🟡 |
-| 3.x | Teams | RBAC + API keys + audit + OIDC | 🟡 |
-| 4.x | Integrations | Node SDK + OAuth2 + 15+ integrations | 🔴 |
+| 3.x | Integrations | Node SDK + OAuth2 + 15+ integrations | 🔴 |
+| 4.x | Auth & Multi-Tenancy | Auth + workspaces + RBAC + API keys + audit + OIDC | 🟡 |
 | 5.x | Enterprise | SAML + partitioning + K8s + CLI + Git sync | 🔴 |
 
-**Total estimated MVP (Milestone 0 + 1): ~12–16 engineer-weeks (solo) · ~6–8 weeks (2 engineers)**
+**Total estimated MVP (Milestone 0 + 1): ~9–13 engineer-weeks (solo) · ~5–7 weeks (2 engineers)**

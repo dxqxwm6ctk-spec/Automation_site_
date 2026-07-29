@@ -2,16 +2,18 @@
 
 A developer-first, self-hostable workflow automation platform — visually build, test, deploy, and monitor multi-step automations. Inspired by n8n but with full execution transparency, git-native versioning, typed variables, and sandboxed code nodes.
 
+**Current status:** Milestone 0 (Foundation) in progress — see `PROJECT_STATUS.md` for what's built, what's next, and confirmed MVP scope.
+
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
-- Required env: `ENCRYPTION_KEY` — 32 hex bytes, AES-256 credential encryption key
-- Required env: `JWT_SECRET`, `JWT_REFRESH_SECRET` — token signing secrets
+- Required env (once the credential store ships, Phase 1.7): `ENCRYPTION_KEY` — 32 hex bytes, AES-256 credential encryption key
+- `JWT_SECRET`, `JWT_REFRESH_SECRET` are NOT needed for the MVP — they belong to the deferred Milestone 4 (Authentication & Multi-Tenancy). The MVP has no login.
 
 ## Stack
 
@@ -80,3 +82,4 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
 - See `docs/07-workflow-engine.md` for the full execution engine design before implementing the worker
+- See `PROJECT_STATUS.md` for current build status, confirmed MVP scope, and the next phase to implement

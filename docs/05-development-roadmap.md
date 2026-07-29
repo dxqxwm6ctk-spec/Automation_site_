@@ -26,18 +26,9 @@ The roadmap is divided into five major milestones. Each milestone is independent
 
 ## Milestone 1 — MVP (v1.0)
 
-**Goal:** A single user can sign up, build a workflow on the visual canvas, trigger it manually or via webhook, and see the execution result. No teams, no scheduling.
+**Goal:** Build a workflow on the visual canvas, trigger it manually or via webhook, and see the execution result. Single shared, unauthenticated scope — no accounts, no teams, no scheduling. See "MVP Scope" in `01-architecture.md` and `02-database-schema.md` for why auth and workspaces are deferred rather than included here.
 
 ### Deliverables
-
-#### Auth
-- Register, login, refresh token, logout
-- JWT middleware on all protected routes
-- Password hashing with Argon2
-
-#### Workspaces
-- Auto-create personal workspace on registration
-- Workspace CRUD; member invite (owner only for now)
 
 #### Workflow Editor (Canvas)
 - React Flow canvas with drag-and-drop
@@ -110,28 +101,7 @@ The roadmap is divided into five major milestones. Each milestone is independent
 
 ---
 
-## Milestone 3 — Teams & RBAC (v1.2)
-
-**Goal:** Multiple engineers share a workspace. Access is controlled. Actions are auditable.
-
-### Deliverables
-- Team CRUD + team membership
-- Workspace roles: owner, admin, editor, viewer enforced on every route
-- Permission overrides per workflow (lock workflow to owner-only edit)
-- API keys: create, list, revoke; scope enforcement in middleware
-- Audit log: all write actions recorded; admin UI to browse + filter
-- Workspace settings page: name, plan, OIDC config (Google, Okta)
-- OIDC login flow (Google as default provider)
-- Member invite flow: email invitation link → register or link existing account
-
-**Acceptance criteria:**
-- Viewer cannot save workflow changes; editor cannot manage credentials; admin cannot delete workspace
-- API key scoped to `execution:write` cannot list credentials
-- Audit log shows actor, action, before/after for credential update
-
----
-
-## Milestone 4 — Integration Nodes (v1.3)
+## Milestone 3 — Integration Nodes
 
 **Goal:** Users can connect to real external services without writing code. Node library grows from 7 to 40+ nodes.
 
@@ -149,6 +119,40 @@ The roadmap is divided into five major milestones. Each milestone is independent
 - User can build a workflow that posts a Slack message triggered by a GitHub push webhook in under 5 minutes
 - OAuth2 credential auto-refreshes token without user intervention
 - Custom node zip uploads, appears in palette, executes successfully
+
+---
+
+## Milestone 4 — Authentication & Multi-Tenancy
+
+**Goal:** The single-tenant MVP becomes multi-user. People can create accounts, share a workspace with teammates, and control who can see and edit what. This is the additive migration described in `02-database-schema.md` ("Additive Migration Sketch") — every MVP table gains ownership without being restructured.
+
+### Deliverables
+
+#### Auth
+- Register, login, refresh token, logout
+- JWT middleware on all protected routes
+- Password hashing with Argon2
+
+#### Workspaces
+- Auto-create personal workspace on registration
+- Workspace CRUD; member invite (owner only for now)
+- Existing MVP data (workflows, credentials, executions, webhooks) backfilled onto a seeded default workspace — see the additive migration sketch
+
+#### Teams & RBAC
+- Team CRUD + team membership
+- Workspace roles: owner, admin, editor, viewer enforced on every route
+- Permission overrides per workflow (lock workflow to owner-only edit)
+- API keys: create, list, revoke; scope enforcement in middleware
+- Audit log: all write actions recorded; admin UI to browse + filter
+- Workspace settings page: name, plan, OIDC config (Google, Okta)
+- OIDC login flow (Google as default provider)
+- Member invite flow: email invitation link → register or link existing account
+
+**Acceptance criteria:**
+- Register → receive access + refresh tokens; existing MVP workflows are visible in the new default workspace
+- Viewer cannot save workflow changes; editor cannot manage credentials; admin cannot delete workspace
+- API key scoped to `execution:write` cannot list credentials
+- Audit log shows actor, action, before/after for credential update
 
 ---
 
