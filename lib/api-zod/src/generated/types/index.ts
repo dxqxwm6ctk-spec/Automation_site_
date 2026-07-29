@@ -7,8 +7,12 @@
  */
 
 export * from './cancelExecution200';
+export * from './createCredential201';
 export * from './createWebhook201';
 export * from './createWorkflow201';
+export * from './credential';
+export * from './credentialInput';
+export * from './credentialInputData';
 export * from './executeWorkflow202';
 export * from './executeWorkflowBody';
 export * from './execution';
@@ -16,10 +20,12 @@ export * from './executionLog';
 export * from './executionLogStatus';
 export * from './executionStatus';
 export * from './executionTriggerType';
+export * from './getCredential200';
 export * from './getExecution200';
 export * from './getWebhook200';
 export * from './getWorkflow200';
 export * from './healthStatus';
+export * from './listCredentials200';
 export * from './listExecutions200';
 export * from './listExecutionsParams';
 export * from './listWebhooks200';

@@ -440,6 +440,76 @@ export const DeleteWebhookResponse = zod.void()
 
 
 /**
+ * Returns all saved credentials. Never includes the encrypted secret data — only metadata needed to pick a credential in the UI.
+ * @summary List credentials
+ */
+export const ListCredentialsResponse = zod.object({
+  "credentials": zod.array(zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "credentialType": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Metadata for a saved credential. The encrypted secret data itself is never exposed via the API.'))
+})
+
+
+/**
+ * Encrypts the provided secret data at rest (AES-256-GCM). The plaintext `data` is never stored or returned — only `name` and `credentialType` are echoed back.
+ * @summary Create a credential
+ */
+
+
+
+
+export const CreateCredentialBody = zod.object({
+  "name": zod.string().min(1),
+  "credentialType": zod.string().min(1).describe('Free-form label for the shape of `data`, e.g. \"basic\", \"bearer\", \"api_key\".'),
+  "data": zod.record(zod.string(), zod.string()).describe('Plaintext secret fields (e.g. {\"username\",\"password\"} or {\"token\"}). Encrypted at rest; never stored in plaintext or returned by any endpoint.')
+})
+
+export const CreateCredentialResponse = zod.object({
+  "credential": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "credentialType": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Metadata for a saved credential. The encrypted secret data itself is never exposed via the API.')
+})
+
+
+/**
+ * Returns credential metadata only — never the secret data.
+ * @summary Get a credential
+ */
+export const GetCredentialParams = zod.object({
+  "credentialId": zod.uuid()
+})
+
+export const GetCredentialResponse = zod.object({
+  "credential": zod.object({
+  "id": zod.uuid(),
+  "name": zod.string(),
+  "credentialType": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Metadata for a saved credential. The encrypted secret data itself is never exposed via the API.')
+})
+
+
+/**
+ * Soft-deletes the credential; it can no longer be selected by nodes.
+ * @summary Delete a credential
+ */
+export const DeleteCredentialParams = zod.object({
+  "credentialId": zod.uuid()
+})
+
+export const DeleteCredentialResponse = zod.void()
+
+
+/**
  * Returns a page of executions, most recently created first.
  * @summary List executions
  */

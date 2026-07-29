@@ -37,6 +37,34 @@ export interface Webhook {
   updatedAt: string;
 }
 
+/**
+ * Plaintext secret fields (e.g. {"username","password"} or {"token"}). Encrypted at rest; never stored in plaintext or returned by any endpoint.
+ */
+export type CredentialInputData = {[key: string]: string};
+
+export interface CredentialInput {
+  /** @minLength 1 */
+  name: string;
+  /**
+     * Free-form label for the shape of `data`, e.g. "basic", "bearer", "api_key".
+     * @minLength 1
+     */
+  credentialType: string;
+  /** Plaintext secret fields (e.g. {"username","password"} or {"token"}). Encrypted at rest; never stored in plaintext or returned by any endpoint. */
+  data: CredentialInputData;
+}
+
+/**
+ * Metadata for a saved credential. The encrypted secret data itself is never exposed via the API.
+ */
+export interface Credential {
+  id: string;
+  name: string;
+  credentialType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -364,6 +392,18 @@ export type CreateWebhook201 = {
 
 export type GetWebhook200 = {
   webhook: Webhook;
+};
+
+export type ListCredentials200 = {
+  credentials: Credential[];
+};
+
+export type CreateCredential201 = {
+  credential: Credential;
+};
+
+export type GetCredential200 = {
+  credential: Credential;
 };
 
 export type ListExecutionsParams = {

@@ -16,6 +16,7 @@
     "@workspace/node-registry": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "cron-parser": "^5.6.2",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "pino": "^9.14.0",

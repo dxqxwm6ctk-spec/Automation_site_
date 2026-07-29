@@ -1,8 +1,62 @@
-import { eq } from "drizzle-orm";
-import { db, executionLogs } from "@workspace/db";
+import { and, eq, isNull } from "drizzle-orm";
+import { db, executionLogs, credentials } from "@workspace/db";
 import { getNodeDefinition } from "@workspace/node-registry";
 import type { GraphNode } from "../lib/graph";
 import { emitNodeDone, emitNodeStart } from "../realtime/socket";
+import { decryptSecretData } from "../lib/crypto";
+
+/**
+ * Resolves an http_request node's `auth.type === "credential"` into a
+ * concrete basic/bearer shape by decrypting the referenced credential. Kept
+ * here (Node-only, api-server-only) rather than in @workspace/node-registry
+ * so the shared registry package never needs DB access — it's also bundled
+ * into the browser for config validation.
+ */
+async function resolveHttpRequestConfig(
+  config: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (!("auth" in config)) return config;
+  const auth = config["auth"];
+  if (
+    typeof auth !== "object" ||
+    auth === null ||
+    (auth as { type?: unknown }).type !== "credential"
+  ) {
+    return config;
+  }
+
+  const credentialId = (auth as { credentialId?: unknown }).credentialId;
+  if (typeof credentialId !== "string") {
+    throw new Error("HTTP Request auth references a credential but no credentialId was set");
+  }
+
+  const [credential] = await db
+    .select()
+    .from(credentials)
+    .where(and(eq(credentials.id, credentialId), isNull(credentials.deletedAt)))
+    .limit(1);
+  if (!credential) {
+    throw new Error(`Credential ${credentialId} not found or has been deleted`);
+  }
+
+  const data = decryptSecretData({
+    dataEncrypted: credential.dataEncrypted,
+    dataIv: credential.dataIv,
+  });
+
+  if (credential.credentialType === "basic") {
+    return {
+      ...config,
+      auth: { type: "basic", username: data["username"] ?? "", password: data["password"] ?? "" },
+    };
+  }
+  if (credential.credentialType === "bearer") {
+    return { ...config, auth: { type: "bearer", token: data["token"] ?? "" } };
+  }
+  throw new Error(
+    `Credential "${credential.name}" has type "${credential.credentialType}", which HTTP Request auth cannot use (expected "basic" or "bearer")`,
+  );
+}
 
 export interface NodeRunOutcome {
   output: unknown;
@@ -41,7 +95,10 @@ export async function runNode(
     throw new UnrunnableNodeError(`Node type "${node.type}" cannot be executed`);
   }
 
-  const config = definition.configSchema.parse(node.config ?? {});
+  let config = definition.configSchema.parse(node.config ?? {});
+  if (node.type === "http_request") {
+    config = await resolveHttpRequestConfig(config);
+  }
   const startedAt = new Date();
 
   const [log] = await db

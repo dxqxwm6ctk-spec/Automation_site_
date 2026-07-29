@@ -16,6 +16,8 @@ tags:
     description: Workflow execution and run history
   - name: webhooks
     description: Webhook management and inbound trigger
+  - name: credentials
+    description: Encrypted credential storage for use by nodes (e.g. HTTP Request auth)
 paths:
   /healthz:
     get:
@@ -373,6 +375,83 @@ paths:
           description: Deleted successfully
         "404":
           description: Webhook not found
+  /v1/credentials:
+    get:
+      operationId: listCredentials
+      tags: [credentials]
+      summary: List credentials
+      description: >-
+        Returns all saved credentials. Never includes the encrypted secret
+        data — only metadata needed to pick a credential in the UI.
+      responses:
+        "200":
+          description: A list of credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credentials]
+                properties:
+                  credentials:
+                    type: array
+                    items: { $ref: "#/components/schemas/Credential" }
+    post:
+      operationId: createCredential
+      tags: [credentials]
+      summary: Create a credential
+      description: >-
+        Encrypts the provided secret data at rest (AES-256-GCM). The
+        plaintext `data` is never stored or returned — only `name` and
+        `credentialType` are echoed back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CredentialInput" }
+      responses:
+        "201":
+          description: Created credential
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credential]
+                properties:
+                  credential: { $ref: "#/components/schemas/Credential" }
+        "409":
+          description: A credential with this name already exists
+  /v1/credentials/{credentialId}:
+    get:
+      operationId: getCredential
+      tags: [credentials]
+      summary: Get a credential
+      description: Returns credential metadata only — never the secret data.
+      parameters:
+        - $ref: "#/components/parameters/CredentialIdParam"
+      responses:
+        "200":
+          description: Credential detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credential]
+                properties:
+                  credential: { $ref: "#/components/schemas/Credential" }
+        "404":
+          description: Credential not found
+    delete:
+      operationId: deleteCredential
+      tags: [credentials]
+      summary: Delete a credential
+      description: Soft-deletes the credential; it can no longer be selected by nodes.
+      parameters:
+        - $ref: "#/components/parameters/CredentialIdParam"
+      responses:
+        "204":
+          description: Deleted successfully
+        "404":
+          description: Credential not found
   /v1/executions:
     get:
       operationId: listExecutions
@@ -484,6 +563,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    CredentialIdParam:
+      name: credentialId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
   schemas:
     WebhookResponseMode:
       type: string
@@ -512,6 +596,34 @@ components:
         responseStatus: { type: integer }
         isActive: { type: boolean }
         lastTriggeredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CredentialInput:
+      type: object
+      required: [name, credentialType, data]
+      properties:
+        name: { type: string, minLength: 1 }
+        credentialType:
+          type: string
+          description: 'Free-form label for the shape of `data`, e.g. "basic", "bearer", "api_key".'
+          minLength: 1
+        data:
+          type: object
+          description: >-
+            Plaintext secret fields (e.g. {"username","password"} or
+            {"token"}). Encrypted at rest; never stored in plaintext or
+            returned by any endpoint.
+          additionalProperties: { type: string }
+    Credential:
+      type: object
+      description: >-
+        Metadata for a saved credential. The encrypted secret data itself is
+        never exposed via the API.
+      required: [id, name, credentialType, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        credentialType: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     HealthStatus:

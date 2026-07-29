@@ -15,6 +15,14 @@ export const httpRequestAuthSchema = z.discriminatedUnion("type", [
     type: z.literal("bearer"),
     token: z.string().min(1, "Token is required"),
   }),
+  // Resolved to a concrete "basic" | "bearer" shape by the api-server's
+  // engine (see engine/nodeRunner.ts) before execute() ever runs — the
+  // registry package stays DB-agnostic (it's also imported by the browser
+  // bundle), so this variant only carries a reference, never secret data.
+  z.object({
+    type: z.literal("credential"),
+    credentialId: z.string().min(1, "Credential is required"),
+  }),
 ]);
 export type HttpRequestAuth = z.infer<typeof httpRequestAuthSchema>;
 
@@ -47,6 +55,13 @@ function applyAuth(headers: Record<string, string>, auth: HttpRequestAuth): void
     headers["Authorization"] = `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString("base64")}`;
   } else if (auth.type === "bearer") {
     headers["Authorization"] = `Bearer ${auth.token}`;
+  } else if (auth.type === "credential") {
+    // The engine resolves "credential" auth into a concrete basic/bearer
+    // shape before calling execute() (see engine/nodeRunner.ts). Reaching
+    // this branch means that resolution step was skipped.
+    throw new Error(
+      "HTTP Request credential auth was not resolved before execution — this is an engine bug, not a user error",
+    );
   }
 }
 
