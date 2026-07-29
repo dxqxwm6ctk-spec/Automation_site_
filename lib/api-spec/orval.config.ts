@@ -68,5 +68,10 @@ export default defineConfig({
         useBigInt: true,
       },
     },
+    hooks: {
+      // Rewrite the generated `zod` import to `zod/v4` on every regeneration
+      // (see scripts/fix-generated-zod-imports.mjs for why).
+      afterAllFilesWrite: "node ./scripts/fix-generated-zod-imports.mjs",
+    },
   },
 });
