@@ -14,6 +14,8 @@ tags:
     description: Workflow CRUD and versioning
   - name: executions
     description: Workflow execution and run history
+  - name: webhooks
+    description: Webhook management and inbound trigger
 paths:
   /healthz:
     get:
@@ -294,6 +296,83 @@ paths:
             The workflow has no version to run, or its graph cannot be
             executed (no entry node, more than one entry node, a cycle, or a
             dangling connection reference).
+  /v1/webhooks:
+    get:
+      operationId: listWebhooks
+      tags: [webhooks]
+      summary: List webhooks
+      description: Returns all webhooks, optionally filtered by workflow.
+      parameters:
+        - name: workflowId
+          in: query
+          description: Only return webhooks for this workflow.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: A list of webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhooks]
+                properties:
+                  webhooks:
+                    type: array
+                    items: { $ref: "#/components/schemas/Webhook" }
+    post:
+      operationId: createWebhook
+      tags: [webhooks]
+      summary: Create a webhook
+      description: >-
+        Registers a new webhook for a workflow. The returned token is used in
+        the public trigger URL: POST /api/webhooks/{token}.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookInput" }
+      responses:
+        "201":
+          description: Created webhook
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhook]
+                properties:
+                  webhook: { $ref: "#/components/schemas/Webhook" }
+        "404":
+          description: Workflow not found
+  /v1/webhooks/{webhookId}:
+    get:
+      operationId: getWebhook
+      tags: [webhooks]
+      summary: Get a webhook
+      parameters:
+        - $ref: "#/components/parameters/WebhookIdParam"
+      responses:
+        "200":
+          description: Webhook detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhook]
+                properties:
+                  webhook: { $ref: "#/components/schemas/Webhook" }
+        "404":
+          description: Webhook not found
+    delete:
+      operationId: deleteWebhook
+      tags: [webhooks]
+      summary: Delete a webhook
+      parameters:
+        - $ref: "#/components/parameters/WebhookIdParam"
+      responses:
+        "204":
+          description: Deleted successfully
+        "404":
+          description: Webhook not found
   /v1/executions:
     get:
       operationId: listExecutions
@@ -385,6 +464,11 @@ paths:
           description: Execution already finished and cannot be cancelled
 components:
   parameters:
+    WebhookIdParam:
+      name: webhookId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     WorkflowIdParam:
       name: workflowId
       in: path
@@ -401,6 +485,35 @@ components:
       required: true
       schema: { type: string, format: uuid }
   schemas:
+    WebhookResponseMode:
+      type: string
+      enum: [immediate, wait_for_completion]
+    WebhookInput:
+      type: object
+      required: [workflowId]
+      properties:
+        workflowId: { type: string, format: uuid }
+        method: { type: string, default: POST }
+        responseMode: { $ref: "#/components/schemas/WebhookResponseMode" }
+    Webhook:
+      type: object
+      description: A registered webhook that triggers a workflow via HTTP.
+      required: [id, workflowId, token, method, responseMode, responseStatus, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        workflowId: { type: string, format: uuid }
+        token:
+          type: string
+          description: >-
+            Public token used in the trigger URL:
+            POST /api/webhooks/{token}
+        method: { type: string }
+        responseMode: { $ref: "#/components/schemas/WebhookResponseMode" }
+        responseStatus: { type: integer }
+        isActive: { type: boolean }
+        lastTriggeredAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     HealthStatus:
       type: object
       properties:

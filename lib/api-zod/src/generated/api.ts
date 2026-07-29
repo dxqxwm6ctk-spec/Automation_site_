@@ -355,6 +355,91 @@ export const ExecuteWorkflowResponse = zod.object({
 
 
 /**
+ * Returns all webhooks, optionally filtered by workflow.
+ * @summary List webhooks
+ */
+export const ListWebhooksQueryParams = zod.object({
+  "workflowId": zod.uuid().optional().describe('Only return webhooks for this workflow.')
+})
+
+export const ListWebhooksResponse = zod.object({
+  "webhooks": zod.array(zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "token": zod.string().describe('Public token used in the trigger URL: POST \/api\/webhooks\/{token}'),
+  "method": zod.string(),
+  "responseMode": zod.enum(['immediate', 'wait_for_completion']),
+  "responseStatus": zod.int(),
+  "isActive": zod.boolean(),
+  "lastTriggeredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A registered webhook that triggers a workflow via HTTP.'))
+})
+
+
+/**
+ * Registers a new webhook for a workflow. The returned token is used in the public trigger URL: POST /api/webhooks/{token}.
+ * @summary Create a webhook
+ */
+export const createWebhookBodyMethodDefault = `POST`;
+
+export const CreateWebhookBody = zod.object({
+  "workflowId": zod.uuid(),
+  "method": zod.string().default(createWebhookBodyMethodDefault),
+  "responseMode": zod.enum(['immediate', 'wait_for_completion']).optional()
+})
+
+export const CreateWebhookResponse = zod.object({
+  "webhook": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "token": zod.string().describe('Public token used in the trigger URL: POST \/api\/webhooks\/{token}'),
+  "method": zod.string(),
+  "responseMode": zod.enum(['immediate', 'wait_for_completion']),
+  "responseStatus": zod.int(),
+  "isActive": zod.boolean(),
+  "lastTriggeredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A registered webhook that triggers a workflow via HTTP.')
+})
+
+
+/**
+ * @summary Get a webhook
+ */
+export const GetWebhookParams = zod.object({
+  "webhookId": zod.uuid()
+})
+
+export const GetWebhookResponse = zod.object({
+  "webhook": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "token": zod.string().describe('Public token used in the trigger URL: POST \/api\/webhooks\/{token}'),
+  "method": zod.string(),
+  "responseMode": zod.enum(['immediate', 'wait_for_completion']),
+  "responseStatus": zod.int(),
+  "isActive": zod.boolean(),
+  "lastTriggeredAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A registered webhook that triggers a workflow via HTTP.')
+})
+
+
+/**
+ * @summary Delete a webhook
+ */
+export const DeleteWebhookParams = zod.object({
+  "webhookId": zod.uuid()
+})
+
+export const DeleteWebhookResponse = zod.void()
+
+
+/**
  * Returns a page of executions, most recently created first.
  * @summary List executions
  */

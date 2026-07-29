@@ -5,6 +5,38 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type WebhookResponseMode = typeof WebhookResponseMode[keyof typeof WebhookResponseMode];
+
+
+export const WebhookResponseMode = {
+  immediate: 'immediate',
+  wait_for_completion: 'wait_for_completion',
+} as const;
+
+export interface WebhookInput {
+  workflowId: string;
+  method?: string;
+  responseMode?: WebhookResponseMode;
+}
+
+/**
+ * A registered webhook that triggers a workflow via HTTP.
+ */
+export interface Webhook {
+  id: string;
+  workflowId: string;
+  /** Public token used in the trigger URL: POST /api/webhooks/{token} */
+  token: string;
+  method: string;
+  responseMode: WebhookResponseMode;
+  responseStatus: number;
+  isActive: boolean;
+  /** @nullable */
+  lastTriggeredAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -313,6 +345,25 @@ export type ExecuteWorkflowBody = {
 
 export type ExecuteWorkflow202 = {
   execution: Execution;
+};
+
+export type ListWebhooksParams = {
+/**
+ * Only return webhooks for this workflow.
+ */
+workflowId?: string;
+};
+
+export type ListWebhooks200 = {
+  webhooks: Webhook[];
+};
+
+export type CreateWebhook201 = {
+  webhook: Webhook;
+};
+
+export type GetWebhook200 = {
+  webhook: Webhook;
 };
 
 export type ListExecutionsParams = {

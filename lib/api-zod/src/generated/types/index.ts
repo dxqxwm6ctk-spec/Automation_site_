@@ -7,6 +7,7 @@
  */
 
 export * from './cancelExecution200';
+export * from './createWebhook201';
 export * from './createWorkflow201';
 export * from './executeWorkflow202';
 export * from './executeWorkflowBody';
@@ -16,10 +17,13 @@ export * from './executionLogStatus';
 export * from './executionStatus';
 export * from './executionTriggerType';
 export * from './getExecution200';
+export * from './getWebhook200';
 export * from './getWorkflow200';
 export * from './healthStatus';
 export * from './listExecutions200';
 export * from './listExecutionsParams';
+export * from './listWebhooks200';
+export * from './listWebhooksParams';
 export * from './listWorkflows200';
 export * from './listWorkflowsParams';
 export * from './listWorkflowVersions200';
@@ -28,6 +32,9 @@ export * from './readinessStatusChecks';
 export * from './restoreWorkflowVersion200';
 export * from './saveWorkflowVersion200';
 export * from './updateWorkflow200';
+export * from './webhook';
+export * from './webhookInput';
+export * from './webhookResponseMode';
 export * from './workflow';
 export * from './workflowGraph';
 export * from './workflowGraphConnection';
