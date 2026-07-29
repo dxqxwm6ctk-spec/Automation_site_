@@ -60,6 +60,52 @@ describe("errorHandler", () => {
     );
   });
 
+  it("hides a non-validation AppError's context in production", () => {
+    const req = mockReq();
+    const res = mockRes();
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    try {
+      errorHandler(
+        new AppError("CONFLICT", "Workflow name already exists", { existingId: "abc" }),
+        req,
+        res,
+        vi.fn(),
+      );
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+
+    const [body] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(body.context).toBeUndefined();
+  });
+
+  it("still includes a VALIDATION_ERROR's context in production", () => {
+    const req = mockReq();
+    const res = mockRes();
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    try {
+      errorHandler(
+        new AppError("VALIDATION_ERROR", "Workflow graph is invalid", {
+          errors: [{ nodeId: "n1", field: "url", message: "Invalid URL" }],
+        }),
+        req,
+        res,
+        vi.fn(),
+      );
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+
+    const [body] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(body.context).toEqual({
+      errors: [{ nodeId: "n1", field: "url", message: "Invalid URL" }],
+    });
+  });
+
   it("maps a ZodError to 422 VALIDATION_ERROR", () => {
     const req = mockReq();
     const res = mockRes();

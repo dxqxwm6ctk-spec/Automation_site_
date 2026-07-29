@@ -43,13 +43,19 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
   if (err instanceof AppError) {
     req.log.warn({ err, code: err.code }, err.message);
+    // Context is dev-only debugging detail (e.g. would leak internals) for
+    // most error codes, so it's hidden in production. VALIDATION_ERROR is the
+    // exception: its context is the structured per-field `errors` array the
+    // client needs to point users at what to fix, not an internal detail —
+    // hiding it in production would leave users with only a generic message.
+    const includeContext = Boolean(err.context) && (!isProduction || err.code === "VALIDATION_ERROR");
     sendProblem(res, {
       title: err.title,
       status: err.statusCode,
       detail: err.message,
       instance: req.originalUrl,
       code: err.code,
-      ...(isProduction || !err.context ? {} : { context: err.context }),
+      ...(includeContext ? { context: err.context } : {}),
     });
     return;
   }

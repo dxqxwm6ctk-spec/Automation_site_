@@ -93,6 +93,21 @@ describe("POST /api/v1/workflows", () => {
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("VALIDATION_ERROR");
   });
+
+  it("returns 422 with per-node errors when the initial graph has an invalid node", async () => {
+    const res = await request(app)
+      .post("/api/v1/workflows")
+      .send({
+        name: "Bad Initial Graph",
+        graph: { nodes: [{ key: "n1", type: "webhook_trigger", config: { path: "no-slash" } }], connections: [] },
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.context.errors).toContainEqual(
+      expect.objectContaining({ nodeId: "n1", field: "path" }),
+    );
+  });
 });
 
 // ─── GET /api/v1/workflows ────────────────────────────────────────────────────
@@ -198,7 +213,16 @@ describe("PUT /api/v1/workflows/:workflowId", () => {
     const { workflow } = await createTestWorkflow({ name: "Version Me" });
     const oldVersionId = workflow.activeVersionId as string;
 
-    const graph = { nodes: [{ key: "http_1", type: "action.http" }], connections: [] };
+    const graph = {
+      nodes: [
+        {
+          key: "http_1",
+          type: "http_request",
+          config: { method: "GET", url: "https://example.com" },
+        },
+      ],
+      connections: [],
+    };
     const res = await request(app)
       .put(`/api/v1/workflows/${workflow.id}`)
       .send({ graph, description: "Add HTTP node" });
@@ -232,6 +256,54 @@ describe("PUT /api/v1/workflows/:workflowId", () => {
 
     expect(res.status).toBe(422);
     expect(res.body.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 422 with per-node errors when a node has an unregistered type", async () => {
+    const { workflow } = await createTestWorkflow();
+    const graph = { nodes: [{ key: "n1", type: "action.http" }], connections: [] };
+
+    const res = await request(app)
+      .put(`/api/v1/workflows/${workflow.id}`)
+      .send({ graph });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.context.errors).toEqual([
+      { nodeId: "n1", field: "type", message: 'Unknown node type: "action.http"' },
+    ]);
+  });
+
+  it("returns 422 with per-field errors when a node's config fails its schema", async () => {
+    const { workflow } = await createTestWorkflow();
+    const graph = {
+      nodes: [{ key: "n1", type: "http_request", config: { url: "not-a-url" } }],
+      connections: [],
+    };
+
+    const res = await request(app)
+      .put(`/api/v1/workflows/${workflow.id}`)
+      .send({ graph });
+
+    expect(res.status).toBe(422);
+    expect(res.body.context.errors).toContainEqual(
+      expect.objectContaining({ nodeId: "n1", field: "url" }),
+    );
+  });
+
+  it("does not persist a new version when graph validation fails", async () => {
+    const { workflow } = await createTestWorkflow({ name: "Rejects Bad Graph" });
+    const graph = { nodes: [{ key: "n1", type: "not_a_real_type" }], connections: [] };
+
+    const res = await request(app)
+      .put(`/api/v1/workflows/${workflow.id}`)
+      .send({ graph });
+    expect(res.status).toBe(422);
+
+    const versions = await db
+      .select()
+      .from(workflowVersions)
+      .where(eq(workflowVersions.workflowId, workflow.id));
+    expect(versions).toHaveLength(1); // only the initial version from createTestWorkflow
   });
 
   it("returns 404 for a non-existent workflow", async () => {
@@ -387,7 +459,7 @@ describe("GET /api/v1/workflows/:workflowId/versions", () => {
 describe("POST /api/v1/workflows/:workflowId/versions/:versionId/restore", () => {
   it("restores a previous version as the active version", async () => {
     const { workflow, version: v1 } = await createTestWorkflow({ name: "Restore Me" });
-    const graph = { nodes: [{ key: "x" }], connections: [] };
+    const graph = { nodes: [{ key: "x", type: "start" }], connections: [] };
 
     // Save version 2
     const putRes = await request(app)

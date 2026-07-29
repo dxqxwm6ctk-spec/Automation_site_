@@ -1,0 +1,203 @@
+Continue the project from the current state. You are working on Phase 1.3: Node Registry and Integration Foundation for the Workflow Canvas.
+
+First, inspect the repository state before making changes. Do not assume previous implementation exists unless verified in the codebase.
+
+Current context:
+- Phase 1.2 Workflow Canvas is already implemented and working.
+- Canvas supports existing nodes:
+  - start
+  - http_request
+  - delay
+  - if
+  - end
+- Workflow graphs are persisted through the existing API.
+- There is already a frontend-only node registry at:
+  artifacts/web/src/features/workflow-canvas/node-registry.ts
+  but it is basic and should be replaced with a shared registry architecture.
+
+Main goal:
+Create a reusable shared package:
+lib/node-registry
+
+This package should become the source of truth for node definitions and validation.
+
+Requirements:
+
+1. Create @workspace/node-registry package
+
+Structure:
+
+lib/node-registry/
+ ├── src/
+ │   ├── index.ts
+ │   ├── types.ts
+ │   ├── registry.ts
+ │   ├── validation.ts
+ │   └── nodes/
+ │       ├── start.ts
+ │       ├── http-request.ts
+ │       ├── delay.ts
+ │       ├── if.ts
+ │       ├── end.ts
+ │       └── webhook-trigger.ts
+
+Follow existing workspace package conventions.
+
+2. Define shared types:
+
+NodeDefinition:
+- id
+- name
+- description
+- category
+- icon (string identifier, not React component)
+- inputs
+- outputs
+- configSchema (Zod schema)
+- defaultConfig
+
+Node categories:
+- trigger
+- action
+- logic
+- control
+
+3. Add registry definitions for:
+
+start
+- category: trigger
+
+webhook_trigger
+- category: trigger
+- config:
+  - path
+  - responseMode:
+    - immediate
+    - wait_for_completion
+
+http_request
+- category: action
+- config:
+  - method
+  - url
+  - headers
+  - queryParams
+  - body
+  - timeout
+  - auth
+
+delay
+- category: control
+- config:
+  - durationMs
+
+if
+- category: logic
+- config:
+  - condition
+
+end
+- category: control
+
+4. Add validation layer:
+
+Implement:
+
+validateNodeConfig(type, config)
+
+and:
+
+validateWorkflowGraph(graph)
+
+Validation should:
+- verify node type exists
+- validate config using Zod schema
+- return detailed errors per node
+
+Example:
+
+{
+ valid:false,
+ errors:[
+   {
+    nodeId:"123",
+    field:"url",
+    message:"Invalid URL"
+   }
+ ]
+}
+
+5. Backend integration:
+
+Find workflow version save endpoint.
+
+Before saving graph_json:
+- run validateWorkflowGraph()
+- reject invalid graphs with HTTP 422
+- return validation errors
+
+Do not break existing API contracts.
+
+6. Frontend integration:
+
+Refactor existing workflow canvas registry.
+
+The frontend should import:
+
+@workspace/node-registry
+
+Do not duplicate node definitions.
+
+Keep frontend-specific logic only:
+- React components
+- Lucide icons mapping
+- styling/colors
+
+7. Update NodePalette:
+
+Use registry metadata.
+
+Add:
+- category grouping
+- webhook trigger node
+
+8. Update NodeInspector:
+
+Add config editors and validation messages for:
+- HTTP Request improvements
+- Webhook trigger
+- timeout/query params/auth
+
+9. Update canvas node rendering:
+
+Make node rendering generic based on registry metadata.
+
+10. Tests:
+
+Add tests for:
+
+node-registry:
+- all nodes registered
+- schemas validate correctly
+- invalid configs fail
+
+backend:
+- invalid workflow save returns 422
+
+frontend:
+- existing graph-transform tests still pass
+
+11. Verify:
+
+Run:
+- pnpm install
+- typecheck
+- tests
+
+Update PROJECT_STATUS.md when complete.
+
+Important:
+- Do not rewrite the existing canvas.
+- Preserve compatibility with current WorkflowGraph format.
+- Avoid introducing execution engine logic; this phase is only registry + validation foundation.
+- Prefer clean architecture over quick patches.

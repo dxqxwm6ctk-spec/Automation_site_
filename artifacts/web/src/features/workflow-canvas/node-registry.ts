@@ -4,35 +4,85 @@ import {
   GitBranch,
   Globe,
   PlayCircle,
+  Webhook,
   type LucideIcon,
 } from "lucide-react";
 import { WorkflowGraphNodeType } from "@workspace/api-client-react";
-import type { WorkflowGraphNodeConfig } from "@workspace/api-client-react";
+import {
+  listNodeDefinitions,
+  type NodeCategory,
+  type NodeDefinition as SharedNodeDefinition,
+  type NodePort,
+} from "@workspace/node-registry";
 
+/**
+ * Node *definitions* (id, config schema, category, ports) live in
+ * @workspace/node-registry and are shared with the API server. This module
+ * only adds the frontend-only concerns the shared package deliberately knows
+ * nothing about: resolved icon components and Tailwind color classes.
+ */
 export type NodeTypeId = (typeof WorkflowGraphNodeType)[keyof typeof WorkflowGraphNodeType];
 
-export const NODE_TYPE_LIST: NodeTypeId[] = [
-  WorkflowGraphNodeType.start,
-  WorkflowGraphNodeType.http_request,
-  WorkflowGraphNodeType.delay,
-  WorkflowGraphNodeType.if,
-  WorkflowGraphNodeType.end,
-];
-
-/** A single output the node can connect from. `id` maps to React Flow's handle id / the graph connection's sourceHandle. */
-export interface NodeOutputDef {
-  id?: string;
-  label: string;
-}
+export type NodeOutputDef = NodePort;
 
 export interface NodeDefinition {
   type: NodeTypeId;
   label: string;
   description: string;
+  category: NodeCategory;
   icon: LucideIcon;
-  hasInput: boolean;
-  outputs: NodeOutputDef[];
-  defaultConfig: WorkflowGraphNodeConfig;
+  inputs: NodePort[];
+  outputs: NodePort[];
+  defaultConfig: Record<string, unknown>;
+}
+
+/** Maps the shared registry's framework-agnostic icon ids to lucide-react components. */
+const ICON_COMPONENTS: Record<string, LucideIcon> = {
+  "play-circle": PlayCircle,
+  webhook: Webhook,
+  globe: Globe,
+  clock: Clock,
+  "git-branch": GitBranch,
+  "check-circle-2": CheckCircle2,
+};
+
+function resolveIcon(iconId: string): LucideIcon {
+  return ICON_COMPONENTS[iconId] ?? PlayCircle;
+}
+
+function toUiDefinition(shared: SharedNodeDefinition): NodeDefinition {
+  return {
+    type: shared.id as NodeTypeId,
+    label: shared.name,
+    description: shared.description,
+    category: shared.category,
+    icon: resolveIcon(shared.icon),
+    inputs: shared.inputs,
+    outputs: shared.outputs,
+    defaultConfig: shared.defaultConfig,
+  };
+}
+
+const SHARED_DEFINITIONS = listNodeDefinitions();
+
+export const NODE_TYPE_LIST: NodeTypeId[] = SHARED_DEFINITIONS.map((d) => d.id as NodeTypeId);
+
+export const NODE_DEFINITIONS: Record<NodeTypeId, NodeDefinition> = Object.fromEntries(
+  SHARED_DEFINITIONS.map((shared) => [shared.id, toUiDefinition(shared)]),
+) as Record<NodeTypeId, NodeDefinition>;
+
+/** Node definitions grouped by category, in registration order — drives the palette's sections. */
+export function listNodeDefinitionsByCategory(): Record<NodeCategory, NodeDefinition[]> {
+  const groups: Record<NodeCategory, NodeDefinition[]> = {
+    trigger: [],
+    action: [],
+    logic: [],
+    control: [],
+  };
+  for (const type of NODE_TYPE_LIST) {
+    groups[NODE_DEFINITIONS[type].category].push(NODE_DEFINITIONS[type]);
+  }
+  return groups;
 }
 
 /** Fully literal Tailwind class strings (no dynamic interpolation) so the compiler can see and keep them. */
@@ -42,62 +92,16 @@ export interface NodeColorClasses {
   ring: string;
 }
 
-export const NODE_DEFINITIONS: Record<NodeTypeId, NodeDefinition> = {
-  [WorkflowGraphNodeType.start]: {
-    type: WorkflowGraphNodeType.start,
-    label: "Start",
-    description: "Entry point of the workflow. Every run begins here.",
-    icon: PlayCircle,
-    hasInput: false,
-    outputs: [{ label: "Next" }],
-    defaultConfig: {},
-  },
-  [WorkflowGraphNodeType.http_request]: {
-    type: WorkflowGraphNodeType.http_request,
-    label: "HTTP Request",
-    description: "Call an external API and capture the response.",
-    icon: Globe,
-    hasInput: true,
-    outputs: [{ label: "Next" }],
-    defaultConfig: { method: "GET", url: "", headers: {}, body: "" },
-  },
-  [WorkflowGraphNodeType.delay]: {
-    type: WorkflowGraphNodeType.delay,
-    label: "Delay",
-    description: "Pause the workflow for a fixed duration.",
-    icon: Clock,
-    hasInput: true,
-    outputs: [{ label: "Next" }],
-    defaultConfig: { durationSeconds: 5 },
-  },
-  [WorkflowGraphNodeType.if]: {
-    type: WorkflowGraphNodeType.if,
-    label: "If",
-    description: "Branch the workflow based on a condition.",
-    icon: GitBranch,
-    hasInput: true,
-    outputs: [
-      { id: "true", label: "True" },
-      { id: "false", label: "False" },
-    ],
-    defaultConfig: { condition: "" },
-  },
-  [WorkflowGraphNodeType.end]: {
-    type: WorkflowGraphNodeType.end,
-    label: "End",
-    description: "Terminates the workflow run.",
-    icon: CheckCircle2,
-    hasInput: true,
-    outputs: [],
-    defaultConfig: {},
-  },
-};
-
 export const NODE_COLOR_CLASSES: Record<NodeTypeId, NodeColorClasses> = {
   [WorkflowGraphNodeType.start]: {
     badge: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
     border: "border-emerald-500/50",
     ring: "ring-emerald-500",
+  },
+  [WorkflowGraphNodeType.webhook_trigger]: {
+    badge: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+    border: "border-cyan-500/50",
+    ring: "ring-cyan-500",
   },
   [WorkflowGraphNodeType.http_request]: {
     badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400",

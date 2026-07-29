@@ -388,7 +388,7 @@ components:
           description: Stable node identifier, unique within the graph.
         type:
           type: string
-          enum: [start, http_request, delay, if, end]
+          enum: [start, webhook_trigger, http_request, delay, if, end]
         label:
           type: ["string", "null"]
         position:

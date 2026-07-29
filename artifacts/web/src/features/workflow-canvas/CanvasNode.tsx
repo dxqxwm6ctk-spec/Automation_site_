@@ -11,6 +11,7 @@ function CanvasNodeComponent({ data, selected }: NodeProps<FlowNode>) {
   const definition = NODE_DEFINITIONS[data.nodeType];
   const colors = NODE_COLOR_CLASSES[data.nodeType];
   const Icon = definition.icon;
+  const inputCount = definition.inputs.length;
   const outputCount = definition.outputs.length;
 
   return (
@@ -22,8 +23,31 @@ function CanvasNodeComponent({ data, selected }: NodeProps<FlowNode>) {
       )}
       data-testid={`node-canvas-${data.nodeType}`}
     >
-      {definition.hasInput && (
-        <Handle type="target" position={Position.Left} className={HANDLE_CLASSES} />
+      {inputCount > 0 && (
+        <div className={cn("relative", inputCount > 1 ? "h-8 pt-1" : "")}>
+          {definition.inputs.map((input, index) => {
+            const top = inputCount === 1 ? "0%" : `${((index + 1) / (inputCount + 1)) * 100}%`;
+            return (
+              <div key={input.id ?? "default"}>
+                {inputCount > 1 && (
+                  <span
+                    className="absolute left-5 -translate-y-1/2 text-[10px] font-medium text-muted-foreground"
+                    style={{ top }}
+                  >
+                    {input.label}
+                  </span>
+                )}
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={input.id}
+                  style={inputCount > 1 ? { top } : undefined}
+                  className={HANDLE_CLASSES}
+                />
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <div className="flex items-center gap-2 px-3 py-2.5">

@@ -9,16 +9,39 @@ import { Router } from "express";
 import { z } from "zod/v4";
 import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import { db, workflows, workflowVersions } from "@workspace/db";
+import { validateWorkflowGraph, type WorkflowGraphValidationResult } from "@workspace/node-registry";
 import { AppError } from "../../lib/errors";
 
 const router = Router();
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
-/** Graph JSON shape stored in workflow_versions.graph_json */
+/**
+ * Graph JSON shape stored in workflow_versions.graph_json. Mirrors the
+ * required/optional split of WorkflowGraphNode/WorkflowGraphConnection in
+ * openapi.yaml — `key`/`type` (and `sourceKey`/`targetKey`) are structurally
+ * required, `config` stays a loose record so @workspace/node-registry can
+ * validate it against the node type's own schema (see
+ * `assertValidGraph` below).
+ */
+const graphNodeSchema = z.object({
+  key: z.string(),
+  type: z.string(),
+  label: z.string().nullable().optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+
+const graphConnectionSchema = z.object({
+  sourceKey: z.string(),
+  sourceHandle: z.string().nullable().optional(),
+  targetKey: z.string(),
+  targetHandle: z.string().nullable().optional(),
+});
+
 const graphSchema = z.object({
-  nodes: z.array(z.record(z.string(), z.unknown())).default([]),
-  connections: z.array(z.record(z.string(), z.unknown())).default([]),
+  nodes: z.array(graphNodeSchema).default([]),
+  connections: z.array(graphConnectionSchema).default([]),
 });
 
 const createWorkflowBodySchema = z.object({
@@ -104,6 +127,25 @@ async function getWorkflowOrThrow(workflowId: string) {
   return workflow;
 }
 
+function formatGraphErrors(errors: WorkflowGraphValidationResult["errors"]): string {
+  return errors.map((error) => `${error.nodeId}.${error.field}: ${error.message}`).join("; ");
+}
+
+/**
+ * Runs the shared node-registry validator over a graph and throws a 422
+ * AppError (with per-node/per-field errors in `context.errors`) if any node
+ * has an unknown type or a config that fails its type's schema. Called
+ * before every graph write so an invalid graph can never be persisted.
+ */
+function assertValidGraph(graph: z.infer<typeof graphSchema>): void {
+  const result = validateWorkflowGraph(graph);
+  if (!result.valid) {
+    throw new AppError("VALIDATION_ERROR", `Workflow graph is invalid: ${formatGraphErrors(result.errors)}`, {
+      errors: result.errors,
+    });
+  }
+}
+
 // ─── GET /v1/workflows ────────────────────────────────────────────────────────
 
 router.get("/", async (req, res) => {
@@ -179,6 +221,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const body = createWorkflowBodySchema.parse(req.body);
+  assertValidGraph(body.graph);
 
   // 1. Insert workflow (activeVersionId is set after version is created)
   const [workflow] = await db
@@ -235,6 +278,7 @@ router.get("/:workflowId", async (req, res) => {
 
 router.put("/:workflowId", async (req, res) => {
   const body = putWorkflowBodySchema.parse(req.body);
+  assertValidGraph(body.graph);
   const workflow = await getWorkflowOrThrow(req.params.workflowId);
 
   // Determine the next version number

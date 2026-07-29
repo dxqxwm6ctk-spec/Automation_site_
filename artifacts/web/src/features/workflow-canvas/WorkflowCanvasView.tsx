@@ -1,4 +1,4 @@
-import { useCallback, type DragEvent } from "react";
+import { useCallback, useMemo, type DragEvent } from "react";
 import {
   Background,
   Controls,
@@ -14,16 +14,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { CanvasNode } from "./CanvasNode";
 import { WORKFLOW_NODE_DND_TYPE } from "./NodePalette";
-import type { NodeTypeId } from "./node-registry";
+import { NODE_TYPE_LIST, type NodeTypeId } from "./node-registry";
 import type { FlowNode } from "./types";
-
-const nodeTypes = {
-  start: CanvasNode,
-  http_request: CanvasNode,
-  delay: CanvasNode,
-  if: CanvasNode,
-  end: CanvasNode,
-};
 
 interface WorkflowCanvasViewProps {
   nodes: FlowNode[];
@@ -47,6 +39,14 @@ function WorkflowCanvasInner({
   onPaneClick,
 }: WorkflowCanvasViewProps) {
   const { screenToFlowPosition } = useReactFlow();
+
+  // Every registered node type renders through the same generic CanvasNode —
+  // derived from the registry's type list so a new node type never needs a
+  // manual entry here.
+  const nodeTypes = useMemo(
+    () => Object.fromEntries(NODE_TYPE_LIST.map((type) => [type, CanvasNode])),
+    [],
+  );
 
   const handleDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
