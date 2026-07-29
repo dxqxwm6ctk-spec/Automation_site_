@@ -5,9 +5,12 @@ import {
   Clock,
   Code2,
   GitBranch,
+  GitFork,
   Globe,
+  Image,
   PlayCircle,
   Repeat,
+  Send,
   Terminal,
   Webhook,
   type LucideIcon,
@@ -50,10 +53,13 @@ const ICON_COMPONENTS: Record<string, LucideIcon> = {
   "code-2": Code2,
   clock: Clock,
   "git-branch": GitBranch,
+  "git-fork": GitFork,
   repeat: Repeat,
   braces: Braces,
   terminal: Terminal,
   "check-circle-2": CheckCircle2,
+  send: Send,
+  image: Image,
 };
 
 function resolveIcon(iconId: string): LucideIcon {
@@ -157,5 +163,25 @@ export const NODE_COLOR_CLASSES: Record<NodeTypeId, NodeColorClasses> = {
     badge: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
     border: "border-slate-500/50",
     ring: "ring-slate-500",
+  },
+  [WorkflowGraphNodeType.telegram_trigger]: {
+    badge: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+    border: "border-sky-500/50",
+    ring: "ring-sky-500",
+  },
+  [WorkflowGraphNodeType.telegram_action]: {
+    badge: "bg-sky-600/15 text-sky-700 dark:text-sky-300",
+    border: "border-sky-600/50",
+    ring: "ring-sky-600",
+  },
+  [WorkflowGraphNodeType.openai_image]: {
+    badge: "bg-green-500/15 text-green-600 dark:text-green-400",
+    border: "border-green-500/50",
+    ring: "ring-green-500",
+  },
+  [WorkflowGraphNodeType.switch]: {
+    badge: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400",
+    border: "border-fuchsia-500/50",
+    ring: "ring-fuchsia-500",
   },
 };

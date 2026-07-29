@@ -74,3 +74,25 @@ export {
   type CodeConfig,
 } from "./nodes/code";
 export { endNode, endConfigSchema, type EndConfig } from "./nodes/end";
+export {
+  telegramTriggerNode,
+  telegramTriggerConfigSchema,
+  type TelegramTriggerConfig,
+} from "./nodes/telegram-trigger";
+export {
+  telegramActionNode,
+  telegramActionConfigSchema,
+  telegramOperations,
+  type TelegramActionConfig,
+  type TelegramOperation,
+} from "./nodes/telegram-action";
+export {
+  switchNode,
+  switchConfigSchema,
+  type SwitchConfig,
+} from "./nodes/switch";
+export {
+  openaiImageNode,
+  openaiImageConfigSchema,
+  type OpenAIImageConfig,
+} from "./nodes/openai-image";

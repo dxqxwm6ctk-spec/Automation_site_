@@ -79,7 +79,7 @@ export const CreateWorkflowBody = zod.object({
   "graph": zod.object({
   "nodes": zod.array(zod.object({
   "key": zod.string().describe('Stable node identifier, unique within the graph.'),
-  "type": zod.enum(['start', 'webhook_trigger', 'schedule_trigger', 'http_request', 'code', 'delay', 'if', 'loop', 'set_variable', 'log', 'end']),
+  "type": zod.enum(['start', 'webhook_trigger', 'telegram_trigger', 'schedule_trigger', 'http_request', 'telegram_action', 'openai_image', 'code', 'delay', 'if', 'switch', 'loop', 'set_variable', 'log', 'end']),
   "label": zod.string().nullish(),
   "position": zod.object({
   "x": zod.number(),
@@ -115,7 +115,7 @@ export const CreateWorkflowResponse = zod.object({
   "graphJson": zod.object({
   "nodes": zod.array(zod.object({
   "key": zod.string().describe('Stable node identifier, unique within the graph.'),
-  "type": zod.enum(['start', 'webhook_trigger', 'schedule_trigger', 'http_request', 'code', 'delay', 'if', 'loop', 'set_variable', 'log', 'end']),
+  "type": zod.enum(['start', 'webhook_trigger', 'telegram_trigger', 'schedule_trigger', 'http_request', 'telegram_action', 'openai_image', 'code', 'delay', 'if', 'switch', 'loop', 'set_variable', 'log', 'end']),
   "label": zod.string().nullish(),
   "position": zod.object({
   "x": zod.number(),
@@ -163,7 +163,7 @@ export const GetWorkflowResponse = zod.object({
   "graphJson": zod.object({
   "nodes": zod.array(zod.object({
   "key": zod.string().describe('Stable node identifier, unique within the graph.'),
-  "type": zod.enum(['start', 'webhook_trigger', 'schedule_trigger', 'http_request', 'code', 'delay', 'if', 'loop', 'set_variable', 'log', 'end']),
+  "type": zod.enum(['start', 'webhook_trigger', 'telegram_trigger', 'schedule_trigger', 'http_request', 'telegram_action', 'openai_image', 'code', 'delay', 'if', 'switch', 'loop', 'set_variable', 'log', 'end']),
   "label": zod.string().nullish(),
   "position": zod.object({
   "x": zod.number(),
@@ -196,7 +196,7 @@ export const SaveWorkflowVersionBody = zod.object({
   "graph": zod.object({
   "nodes": zod.array(zod.object({
   "key": zod.string().describe('Stable node identifier, unique within the graph.'),
-  "type": zod.enum(['start', 'webhook_trigger', 'schedule_trigger', 'http_request', 'code', 'delay', 'if', 'loop', 'set_variable', 'log', 'end']),
+  "type": zod.enum(['start', 'webhook_trigger', 'telegram_trigger', 'schedule_trigger', 'http_request', 'telegram_action', 'openai_image', 'code', 'delay', 'if', 'switch', 'loop', 'set_variable', 'log', 'end']),
   "label": zod.string().nullish(),
   "position": zod.object({
   "x": zod.number(),

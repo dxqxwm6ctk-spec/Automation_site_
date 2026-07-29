@@ -9,17 +9,25 @@ import { loopNode } from "./nodes/loop";
 import { setVariableNode } from "./nodes/set-variable";
 import { logNode } from "./nodes/log";
 import { endNode } from "./nodes/end";
+import { telegramTriggerNode } from "./nodes/telegram-trigger";
+import { telegramActionNode } from "./nodes/telegram-action";
+import { switchNode } from "./nodes/switch";
+import { openaiImageNode } from "./nodes/openai-image";
 import type { NodeCategory, NodeDefinition } from "./types";
 
 /** Ordered list of every registered node — order drives palette display order. */
 export const NODE_DEFINITIONS: NodeDefinition[] = [
   startNode,
   webhookTriggerNode,
+  telegramTriggerNode,
   scheduleTriggerNode,
   httpRequestNode,
+  telegramActionNode,
+  openaiImageNode,
   codeNode,
   delayNode,
   ifNode,
+  switchNode,
   loopNode,
   setVariableNode,
   logNode,

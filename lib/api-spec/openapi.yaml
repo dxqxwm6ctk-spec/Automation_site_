@@ -746,7 +746,7 @@ components:
           description: Stable node identifier, unique within the graph.
         type:
           type: string
-          enum: [start, webhook_trigger, schedule_trigger, http_request, code, delay, if, loop, set_variable, log, end]
+          enum: [start, webhook_trigger, telegram_trigger, schedule_trigger, http_request, telegram_action, openai_image, code, delay, if, switch, loop, set_variable, log, end]
         label:
           type: ["string", "null"]
         position:
