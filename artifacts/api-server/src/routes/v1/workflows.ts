@@ -17,6 +17,7 @@ import { decodeCursor, encodeCursor } from "../../lib/cursor";
 import { buildExecutionPlan, assertAcyclic, GraphCycleError, GraphStructureError } from "../../engine/graphBuilder";
 import { runExecution } from "../../engine/executionEngine";
 import { scheduleWorkflow, unscheduleWorkflow } from "../../scheduler/schedulerService";
+import { isQueueReady, enqueueExecution } from "../../queue";
 
 const router = Router();
 
@@ -389,13 +390,19 @@ router.post("/:workflowId/execute", async (req, res) => {
     })
     .returning();
 
-  // Fire-and-forget: the engine runs asynchronously and persists its own
-  // progress/result onto this execution row — runExecution never rejects
-  // (see engine/executionEngine.ts), so this catch only guards against a
-  // truly unexpected internal error (e.g. the DB going away mid-run).
-  void runExecution(execution.id, graph, plan, body.triggerPayload).catch((err: unknown) => {
-    req.log.error({ err, executionId: execution.id }, "Unhandled execution engine error");
-  });
+  // When Redis is configured, dispatch via BullMQ for durability + retries.
+  // Otherwise fall back to the existing in-process fire-and-forget path.
+  if (isQueueReady()) {
+    await enqueueExecution({
+      executionId: execution.id,
+      graphJson: version.graphJson,
+      triggerPayload: body.triggerPayload ?? null,
+    });
+  } else {
+    void runExecution(execution.id, graph, plan, body.triggerPayload).catch((err: unknown) => {
+      req.log.error({ err, executionId: execution.id }, "Unhandled execution engine error");
+    });
+  }
 
   res.status(202).json({ execution });
 });

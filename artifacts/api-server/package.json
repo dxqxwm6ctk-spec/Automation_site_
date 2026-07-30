@@ -15,6 +15,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/node-registry": "workspace:*",
     "argon2": "^0.45.1",
+    "bullmq": "^5.81.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "cron-parser": "^5.6.2",

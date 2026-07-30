@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse, ReadinessCheckResponse } from "@workspace/api-zod";
 import { pool } from "@workspace/db";
+import { pingRedis } from "../queue";
 
 const router: IRouter = Router();
 
@@ -19,12 +20,8 @@ router.get("/ready", async (req, res): Promise<void> => {
     postgres = "error";
   }
 
-  // Redis/BullMQ infrastructure is Phase 0.4 (not yet provisioned — no
-  // REDIS_URL, no client dependency installed). Reported honestly instead
-  // of faking a connectivity result; it does not gate readiness until it is
-  // actually part of the system. Replace with a real ping once Phase 0.4
-  // adds the Redis client.
-  const redis = "not_configured" as const;
+  // Ping Redis via the BullMQ queue client if REDIS_URL is configured.
+  const redis = await pingRedis();
 
   const ready = postgres === "ok";
   const data = ReadinessCheckResponse.parse({

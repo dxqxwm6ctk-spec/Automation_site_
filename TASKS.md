@@ -62,18 +62,18 @@
 ## الأولوية 2 — البنية التحتية للـ Production
 
 ### 2.1 Redis + BullMQ — Execution Queue
-- **الحالة:** `[ ]`
-- **ما المشكلة:** الـ execution engine يشتغل in-process بالذاكرة. لو السيرفر أعيد تشغيله أثناء تنفيذ workflow، الـ job ضاع. لا يوجد retry، لا dead-letter، لا priority queue.
-- **المطلوب:**
-  - [ ] توفير Redis (Replit integration أو REDIS_URL secret)
-  - [ ] ربط BullMQ بالـ Redis
-  - [ ] نقل الـ execution jobs إلى queue بدل الـ in-process fire-and-forget
-  - [ ] worker process منفصل أو in-process worker للـ development
-  - [ ] تحديث `/api/ready` ليبلّغ `"redis": "ok"` بدل `"not_configured"`
+- **الحالة:** `[~]` — البنية التحتية جاهزة، بانتظار REDIS_URL secret
+- **ما تم:**
+  - [x] `artifacts/api-server/src/queue/index.ts` — BullMQ queue + in-process worker مع graceful fallback لـ in-process عند غياب REDIS_URL
+  - [x] Execute handler في `workflows.ts` → يستخدم queue عندما متوفر، وإلا in-process
+  - [x] Webhook receiver → نفس المنطق (immediate mode فقط؛ wait_for_completion يبقى in-process)
+  - [x] `/api/ready` يستخدم `pingRedis()` الحقيقي بدل الـ hardcoded `"not_configured"`
+  - [x] `initQueue()` يُستدعى عند بدء السيرفر بجانب `bootstrapScheduler()`
+  - [~] توفير REDIS_URL — يحتاج Replit Redis integration أو secret من المستخدم
 - **الملفات ذات الصلة:**
-  - `artifacts/api-server/src/engine/executionEngine.ts` (في السطور الأولى تعليق صريح عن هذا التأجيل)
+  - `artifacts/api-server/src/queue/index.ts` (الجديد)
+  - `artifacts/api-server/src/index.ts`
   - `artifacts/api-server/src/routes/health.ts`
-  - `replit.md`
 
 ---
 
@@ -128,15 +128,12 @@
 ---
 
 ### 3.2 Canvas Polish (Phase 1.2 المتبقي)
-- **الحالة:** `[ ]`
-- **المطلوب:**
-  - [ ] **Undo/Redo stack** — Ctrl+Z / Ctrl+Y على الكانفاس
-  - [ ] **Auto-layout (Dagre)** — زر يرتّب الـ nodes تلقائياً
-  - [ ] **Node palette search** — بحث في قائمة الـ nodes
-  - [ ] **Keyboard shortcuts** — Delete لحذف node محدد، وغيرها
-- **الملفات ذات الصلة:**
-  - `artifacts/web/src/features/workflow-canvas/`
-  - `artifacts/web/src/pages/workflow-editor.tsx`
+- **الحالة:** `[x]` — مكتمل فعلاً (PROJECT_STATUS.md كان متأخراً)
+- **ما تبيّن:**
+  - [x] Undo/Redo stack — `historyRef` في `useWorkflowEditor.ts` (50 snapshot)، Ctrl+Z / Ctrl+Y في keyboard handler
+  - [x] Auto-layout (Dagre) — `applyLayout()` في `useWorkflowEditor.ts`، زر بـ `data-testid="button-auto-layout"`
+  - [x] Node palette search — `<Input>` مع filter في `NodePalette.tsx`، `data-testid="input-node-search"`
+  - [x] Keyboard shortcuts — Ctrl+Z undo، Ctrl+Y/Shift+Z redo، Ctrl+S save، Delete/Backspace حذف node محدد، Escape deselect
 
 ---
 

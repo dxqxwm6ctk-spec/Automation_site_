@@ -19,6 +19,7 @@ import { AppError } from "../lib/errors";
 import { graphSchema } from "../lib/graph";
 import { buildExecutionPlan, GraphStructureError } from "../engine/graphBuilder";
 import { runExecution } from "../engine/executionEngine";
+import { isQueueReady, enqueueExecution } from "../queue";
 
 const router = Router();
 
@@ -91,8 +92,7 @@ async function handleInboundWebhook(
     .where(eq(webhooks.id, webhook.id));
 
   if (webhook.responseMode === "wait_for_completion") {
-    // Await the engine — runExecution never rejects (all failures become
-    // terminal execution states), so this is safe to await.
+    // wait_for_completion always runs in-process (we need the result now).
     await runExecution(execution.id, graph, plan, triggerPayload);
     const [finished] = await db
       .select()
@@ -101,12 +101,20 @@ async function handleInboundWebhook(
       .limit(1);
     res.status(webhook.responseStatus).json({ execution: finished ?? execution });
   } else {
-    // Immediate mode: fire-and-forget.
-    void runExecution(execution.id, graph, plan, triggerPayload).catch(
-      (err: unknown) => {
-        req.log.error({ err, executionId: execution.id }, "Unhandled webhook execution error");
-      },
-    );
+    // Immediate mode: use BullMQ queue when available, otherwise in-process.
+    if (isQueueReady()) {
+      await enqueueExecution({
+        executionId: execution.id,
+        graphJson: version.graphJson,
+        triggerPayload,
+      });
+    } else {
+      void runExecution(execution.id, graph, plan, triggerPayload).catch(
+        (err: unknown) => {
+          req.log.error({ err, executionId: execution.id }, "Unhandled webhook execution error");
+        },
+      );
+    }
     res.status(202).json({ execution });
   }
 }

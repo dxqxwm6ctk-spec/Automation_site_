@@ -2,6 +2,7 @@ import { createServer } from "http";
 import app from "./app";
 import { initSocketServer } from "./realtime/socket";
 import { bootstrapScheduler } from "./scheduler/schedulerService";
+import { initQueue } from "./queue";
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -29,6 +30,11 @@ httpServer.listen(port, (err?: Error) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
+
+  // Initialise BullMQ queue + in-process worker (no-op if REDIS_URL is absent).
+  initQueue().catch((e: unknown) =>
+    logger.error({ err: e }, "Queue init failed"),
+  );
 
   // Arm cron timers for every active workflow with a schedule_trigger node.
   bootstrapScheduler().catch((e: unknown) =>
