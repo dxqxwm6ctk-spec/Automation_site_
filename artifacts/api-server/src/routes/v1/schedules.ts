@@ -8,7 +8,7 @@
  */
 import { Router } from "express";
 import { z } from "zod/v4";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, schedules, workflows } from "@workspace/db";
 import { AppError } from "../../lib/errors";
 import {
@@ -16,8 +16,11 @@ import {
   unscheduleWorkflow,
 } from "../../scheduler/schedulerService";
 import { CronExpressionParser } from "cron-parser";
+import { requireAuth } from "../../middlewares/requireAuth";
 
 const router = Router();
+
+router.use(requireAuth);
 
 /** Validate a cron expression; throws AppError on invalid. */
 function assertValidCron(expr: string) {
@@ -77,11 +80,12 @@ router.post("/", async (req, res) => {
   const body = createBody.parse(req.body);
   assertValidCron(body.cronExpression);
 
-  // Verify workflow exists
+  // Verify workflow exists and belongs to the authenticated user
+  const userId = req.user!.id;
   const [workflow] = await db
     .select({ id: workflows.id })
     .from(workflows)
-    .where(eq(workflows.id, body.workflowId))
+    .where(and(eq(workflows.id, body.workflowId), eq(workflows.userId, userId), isNull(workflows.deletedAt)))
     .limit(1);
   if (!workflow) throw new AppError("NOT_FOUND", `Workflow ${body.workflowId} not found`);
 

@@ -1,16 +1,17 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { workflowVersions } from "./workflow-versions";
+import { usersTable } from "./auth";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
-// MVP note: no workspace_id / owner_id / created_by column. Every workflow is
-// globally visible and editable — see docs/02-database-schema.md.
 export const workflows = pgTable(
   "workflows",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Nullable so rows created before auth shipped are preserved.
+    userId: varchar("user_id").references(() => usersTable.id),
     name: text("name").notNull(),
     description: text("description"),
     tags: text("tags").array().notNull().default([]),
@@ -28,6 +29,7 @@ export const workflows = pgTable(
   (table) => [
     index("idx_workflows_active").on(table.isActive).where(sql`${table.deletedAt} IS NULL`),
     index("idx_workflows_tags").using("gin", table.tags),
+    index("idx_workflows_user_id").on(table.userId),
   ],
 );
 

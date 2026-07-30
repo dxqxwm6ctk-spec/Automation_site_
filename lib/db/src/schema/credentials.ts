@@ -1,15 +1,16 @@
 import { sql } from "drizzle-orm";
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./auth";
 
-// Credentials are global and unscoped in the MVP — no owner, no per-user
-// visibility rule. Secret storage, not identity, so it ships without accounts.
 // The API must never return data_encrypted / data_iv (see replit.md "Gotchas").
 export const credentials = pgTable(
   "credentials",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Nullable so rows created before auth shipped are preserved.
+    userId: varchar("user_id").references(() => usersTable.id),
     name: text("name").notNull(),
     // "oauth2", "api_key", "basic", "aws", etc.
     credentialType: text("credential_type").notNull(),
@@ -22,10 +23,14 @@ export const credentials = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex("credentials_name_key").on(table.name).where(sql`${table.deletedAt} IS NULL`),
+    // Unique credential names are scoped per user — two different users may use the same name.
+    uniqueIndex("credentials_user_name_key")
+      .on(table.userId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
     index("idx_credentials_type")
       .on(table.credentialType)
       .where(sql`${table.deletedAt} IS NULL`),
+    index("idx_credentials_user_id").on(table.userId),
   ],
 );
 

@@ -12,8 +12,11 @@ import { z } from "zod/v4";
 import { eq } from "drizzle-orm";
 import { db, variables } from "@workspace/db";
 import { AppError } from "../../lib/errors";
+import { requireAuth } from "../../middlewares/requireAuth";
 
 const router = Router();
+
+router.use(requireAuth);
 
 const MASKED = "***";
 

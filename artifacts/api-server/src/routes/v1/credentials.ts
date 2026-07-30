@@ -14,8 +14,11 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, credentials } from "@workspace/db";
 import { AppError } from "../../lib/errors";
 import { encryptSecretData } from "../../lib/crypto";
+import { requireAuth } from "../../middlewares/requireAuth";
 
 const router = Router();
+
+router.use(requireAuth);
 
 /** Shape returned to clients — deliberately excludes dataEncrypted/dataIv. */
 function toPublicCredential(row: typeof credentials.$inferSelect) {
@@ -30,11 +33,12 @@ function toPublicCredential(row: typeof credentials.$inferSelect) {
 
 // ─── GET /v1/credentials ────────────────────────────────────────────────────
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
+  const userId = req.user!.id;
   const rows = await db
     .select()
     .from(credentials)
-    .where(isNull(credentials.deletedAt))
+    .where(and(isNull(credentials.deletedAt), eq(credentials.userId, userId)))
     .orderBy(credentials.createdAt);
   res.json({ credentials: rows.map(toPublicCredential) });
 });
@@ -49,11 +53,18 @@ const createCredentialBodySchema = z.object({
 
 router.post("/", async (req, res) => {
   const body = createCredentialBodySchema.parse(req.body);
+  const userId = req.user!.id;
 
   const [existing] = await db
     .select({ id: credentials.id })
     .from(credentials)
-    .where(and(eq(credentials.name, body.name), isNull(credentials.deletedAt)))
+    .where(
+      and(
+        eq(credentials.userId, userId),
+        eq(credentials.name, body.name),
+        isNull(credentials.deletedAt),
+      ),
+    )
     .limit(1);
   if (existing) {
     throw new AppError("CONFLICT", `A credential named "${body.name}" already exists`);
@@ -63,6 +74,7 @@ router.post("/", async (req, res) => {
   const [credential] = await db
     .insert(credentials)
     .values({
+      userId,
       name: body.name,
       credentialType: body.credentialType,
       dataEncrypted,
@@ -76,10 +88,17 @@ router.post("/", async (req, res) => {
 // ─── GET /v1/credentials/:credentialId ──────────────────────────────────────
 
 router.get("/:credentialId", async (req, res) => {
+  const userId = req.user!.id;
   const [credential] = await db
     .select()
     .from(credentials)
-    .where(and(eq(credentials.id, req.params.credentialId), isNull(credentials.deletedAt)))
+    .where(
+      and(
+        eq(credentials.id, req.params.credentialId),
+        eq(credentials.userId, userId),
+        isNull(credentials.deletedAt),
+      ),
+    )
     .limit(1);
   if (!credential) {
     throw new AppError("NOT_FOUND", `Credential ${req.params.credentialId} not found`);
@@ -90,10 +109,17 @@ router.get("/:credentialId", async (req, res) => {
 // ─── DELETE /v1/credentials/:credentialId ───────────────────────────────────
 
 router.delete("/:credentialId", async (req, res) => {
+  const userId = req.user!.id;
   const [credential] = await db
     .select({ id: credentials.id })
     .from(credentials)
-    .where(and(eq(credentials.id, req.params.credentialId), isNull(credentials.deletedAt)))
+    .where(
+      and(
+        eq(credentials.id, req.params.credentialId),
+        eq(credentials.userId, userId),
+        isNull(credentials.deletedAt),
+      ),
+    )
     .limit(1);
   if (!credential) {
     throw new AppError("NOT_FOUND", `Credential ${req.params.credentialId} not found`);

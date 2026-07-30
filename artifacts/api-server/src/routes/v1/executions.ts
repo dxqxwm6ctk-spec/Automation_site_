@@ -9,12 +9,15 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { db, executionLogs, executions, EXECUTION_STATUSES } from "@workspace/db";
+import { db, executionLogs, executions, workflows, EXECUTION_STATUSES } from "@workspace/db";
 import { AppError } from "../../lib/errors";
 import { decodeCursor, encodeCursor } from "../../lib/cursor";
 import { requestCancellation } from "../../engine/executionEngine";
+import { requireAuth } from "../../middlewares/requireAuth";
 
 const router = Router();
+
+router.use(requireAuth);
 
 const listQuerySchema = z.object({
   workflowId: z.string().uuid().optional(),
@@ -33,7 +36,10 @@ router.get("/", async (req, res) => {
     limit: req.query.limit,
   });
 
-  const baseConditions = [];
+  const userId = req.user!.id;
+
+  // Always join with workflows so results are scoped to the authenticated user.
+  const baseConditions = [eq(workflows.userId, userId)];
   if (query.workflowId) baseConditions.push(eq(executions.workflowId, query.workflowId));
   if (query.status) baseConditions.push(eq(executions.status, query.status));
 
@@ -49,54 +55,68 @@ router.get("/", async (req, res) => {
 
   const [rows, [{ count }]] = await Promise.all([
     db
-      .select()
+      .select({ execution: executions })
       .from(executions)
-      .where(pageConditions.length > 0 ? and(...pageConditions) : undefined)
+      .innerJoin(workflows, eq(executions.workflowId, workflows.id))
+      .where(and(...pageConditions))
       .orderBy(desc(executions.createdAt), desc(executions.id))
       .limit(query.limit + 1),
     db
       .select({ count: sql<string>`count(*)` })
       .from(executions)
-      .where(baseConditions.length > 0 ? and(...baseConditions) : undefined),
+      .innerJoin(workflows, eq(executions.workflowId, workflows.id))
+      .where(and(...baseConditions)),
   ]);
 
   const hasMore = rows.length > query.limit;
   const page = hasMore ? rows.slice(0, query.limit) : rows;
   const nextCursor = hasMore
-    ? encodeCursor(page[page.length - 1].createdAt, page[page.length - 1].id)
+    ? encodeCursor(page[page.length - 1].execution.createdAt, page[page.length - 1].execution.id)
     : null;
 
-  res.json({ executions: page, nextCursor, total: parseInt(count, 10) });
+  res.json({
+    executions: page.map((r) => r.execution),
+    nextCursor,
+    total: parseInt(count, 10),
+  });
 });
 
 // ─── GET /v1/executions/:executionId ──────────────────────────────────────────
 
 router.get("/:executionId", async (req, res) => {
-  const [execution] = await db
-    .select()
+  const userId = req.user!.id;
+
+  const [row] = await db
+    .select({ execution: executions })
     .from(executions)
-    .where(eq(executions.id, req.params.executionId))
+    .innerJoin(workflows, eq(executions.workflowId, workflows.id))
+    .where(and(eq(executions.id, req.params.executionId), eq(workflows.userId, userId)))
     .limit(1);
-  if (!execution) throw new AppError("NOT_FOUND", `Execution ${req.params.executionId} not found`);
+  if (!row) throw new AppError("NOT_FOUND", `Execution ${req.params.executionId} not found`);
 
   const logs = await db
     .select()
     .from(executionLogs)
-    .where(eq(executionLogs.executionId, execution.id))
+    .where(eq(executionLogs.executionId, row.execution.id))
     .orderBy(asc(executionLogs.startedAt), asc(executionLogs.createdAt));
 
-  res.json({ execution, logs });
+  res.json({ execution: row.execution, logs });
 });
 
 // ─── POST /v1/executions/:executionId/cancel ─────────────────────────────────
 
 router.post("/:executionId/cancel", async (req, res) => {
-  const [execution] = await db
-    .select()
+  const userId = req.user!.id;
+
+  const [row] = await db
+    .select({ execution: executions })
     .from(executions)
-    .where(eq(executions.id, req.params.executionId))
+    .innerJoin(workflows, eq(executions.workflowId, workflows.id))
+    .where(and(eq(executions.id, req.params.executionId), eq(workflows.userId, userId)))
     .limit(1);
-  if (!execution) throw new AppError("NOT_FOUND", `Execution ${req.params.executionId} not found`);
+  if (!row) throw new AppError("NOT_FOUND", `Execution ${req.params.executionId} not found`);
+
+  const { execution } = row;
 
   if (execution.status !== "pending" && execution.status !== "running") {
     throw new AppError(
@@ -107,8 +127,13 @@ router.post("/:executionId/cancel", async (req, res) => {
 
   await requestCancellation(execution.id);
 
-  const [updated] = await db.select().from(executions).where(eq(executions.id, execution.id)).limit(1);
-  res.json({ execution: updated });
+  const [updated] = await db
+    .select({ execution: executions })
+    .from(executions)
+    .innerJoin(workflows, eq(executions.workflowId, workflows.id))
+    .where(and(eq(executions.id, execution.id), eq(workflows.userId, userId)))
+    .limit(1);
+  res.json({ execution: updated?.execution });
 });
 
 export default router;

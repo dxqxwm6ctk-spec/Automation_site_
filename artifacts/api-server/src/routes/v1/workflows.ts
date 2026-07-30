@@ -10,6 +10,7 @@ import { z } from "zod/v4";
 import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { db, executions, webhooks, workflows, workflowVersions } from "@workspace/db";
+import { requireAuth } from "../../middlewares/requireAuth";
 import { validateWorkflowGraph, type WorkflowGraphValidationResult } from "@workspace/node-registry";
 import { AppError } from "../../lib/errors";
 import { graphSchema, type Graph } from "../../lib/graph";
@@ -20,6 +21,8 @@ import { scheduleWorkflow, unscheduleWorkflow } from "../../scheduler/schedulerS
 import { isQueueReady, enqueueExecution } from "../../queue";
 
 const router = Router();
+
+router.use(requireAuth);
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
@@ -63,12 +66,18 @@ const listQuerySchema = z.object({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Fetch a non-deleted workflow or throw 404. */
-async function getWorkflowOrThrow(workflowId: string) {
+/** Fetch a non-deleted workflow owned by userId or throw 404. */
+async function getWorkflowOrThrow(workflowId: string, userId: string) {
   const [workflow] = await db
     .select()
     .from(workflows)
-    .where(and(eq(workflows.id, workflowId), isNull(workflows.deletedAt)))
+    .where(
+      and(
+        eq(workflows.id, workflowId),
+        eq(workflows.userId, userId),
+        isNull(workflows.deletedAt),
+      ),
+    )
     .limit(1);
   if (!workflow) throw new AppError("NOT_FOUND", `Workflow ${workflowId} not found`);
   return workflow;
@@ -162,8 +171,12 @@ router.get("/", async (req, res) => {
     limit: req.query.limit,
   });
 
+  // requireAuth guarantees req.isAuthenticated() is true here.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const userId = req.user!.id;
+
   // Base filter conditions (used for both paginated rows and total count)
-  const baseConditions = [isNull(workflows.deletedAt)];
+  const baseConditions = [isNull(workflows.deletedAt), eq(workflows.userId, userId)];
   if (query.isActive !== undefined) baseConditions.push(eq(workflows.isActive, query.isActive));
   if (query.search) baseConditions.push(ilike(workflows.name, `%${query.search}%`));
   if (query.tags && query.tags.length > 0) {
@@ -229,10 +242,14 @@ router.post("/", async (req, res) => {
   const body = createWorkflowBodySchema.parse(req.body);
   assertValidGraph(body.graph);
 
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const userId = req.user!.id;
+
   // 1. Insert workflow (activeVersionId is set after version is created)
   const [workflow] = await db
     .insert(workflows)
     .values({
+      userId,
       name: body.name,
       description: body.description,
       tags: body.tags,
@@ -267,7 +284,7 @@ router.post("/", async (req, res) => {
 // ─── GET /v1/workflows/:workflowId ───────────────────────────────────────────
 
 router.get("/:workflowId", async (req, res) => {
-  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+  const workflow = await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   let activeVersion = null;
   if (workflow.activeVersionId) {
@@ -290,7 +307,7 @@ router.get("/:workflowId", async (req, res) => {
 router.put("/:workflowId", async (req, res) => {
   const body = putWorkflowBodySchema.parse(req.body);
   assertValidGraph(body.graph);
-  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+  const workflow = await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   // Determine the next version number
   const [maxRow] = await db
@@ -351,7 +368,7 @@ const executeWorkflowBodySchema = z
 
 router.post("/:workflowId/execute", async (req, res) => {
   const body = executeWorkflowBodySchema.parse(req.body ?? {});
-  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+  const workflow = await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   if (!workflow.activeVersionId) {
     throw new AppError("EXECUTION_FAILED", `Workflow ${workflow.id} has no version to execute yet`);
@@ -412,7 +429,7 @@ router.post("/:workflowId/execute", async (req, res) => {
 
 router.patch("/:workflowId", async (req, res) => {
   const body = patchWorkflowBodySchema.parse(req.body);
-  await getWorkflowOrThrow(req.params.workflowId);
+  await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   // Build update object from only the supplied fields
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -455,7 +472,7 @@ router.patch("/:workflowId", async (req, res) => {
 // Soft-delete: sets deleted_at timestamp.
 
 router.delete("/:workflowId", async (req, res) => {
-  await getWorkflowOrThrow(req.params.workflowId);
+  await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   await db
     .update(workflows)
@@ -471,7 +488,7 @@ router.delete("/:workflowId", async (req, res) => {
 // ─── GET /v1/workflows/:workflowId/versions ───────────────────────────────────
 
 router.get("/:workflowId/versions", async (req, res) => {
-  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+  const workflow = await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   const versions = await db
     .select({
@@ -490,7 +507,7 @@ router.get("/:workflowId/versions", async (req, res) => {
 // ─── POST /v1/workflows/:workflowId/versions/:versionId/restore ───────────────
 
 router.post("/:workflowId/versions/:versionId/restore", async (req, res) => {
-  const workflow = await getWorkflowOrThrow(req.params.workflowId);
+  const workflow = await getWorkflowOrThrow(req.params.workflowId, req.user!.id);
 
   // Verify the version belongs to this workflow
   const [version] = await db

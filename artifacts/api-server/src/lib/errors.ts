@@ -12,7 +12,8 @@ export type ErrorCode =
   | "RATE_LIMITED"
   | "EXECUTION_FAILED"
   | "CREDENTIAL_INVALID"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "UNAUTHORIZED";
 
 interface ErrorCodeMeta {
   statusCode: number;
@@ -27,6 +28,7 @@ const ERROR_CODES: Record<ErrorCode, ErrorCodeMeta> = {
   EXECUTION_FAILED: { statusCode: 422, title: "Execution Failed" },
   CREDENTIAL_INVALID: { statusCode: 422, title: "Credential Invalid" },
   INTERNAL_ERROR: { statusCode: 500, title: "Internal Server Error" },
+  UNAUTHORIZED: { statusCode: 401, title: "Unauthorized" },
 };
 
 /**
