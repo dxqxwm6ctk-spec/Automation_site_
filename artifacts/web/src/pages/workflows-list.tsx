@@ -34,7 +34,7 @@ export default function WorkflowsListPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login } = useAuth();
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -118,7 +118,16 @@ export default function WorkflowsListPage() {
             <UserMenu />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-1.5" data-testid="button-new-workflow">
+              <Button
+                className="gap-1.5"
+                data-testid="button-new-workflow"
+                onClick={(e) => {
+                  if (!isAuthenticated) {
+                    e.preventDefault();
+                    login();
+                  }
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 New workflow
               </Button>
