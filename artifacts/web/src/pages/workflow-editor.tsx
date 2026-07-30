@@ -17,6 +17,7 @@ import {
   getGetWorkflowQueryKey,
   getListWebhooksQueryKey,
   getListWorkflowVersionsQueryKey,
+  useCreateWebhook,
   useExecuteWorkflow,
   useListWebhooks,
   useListWorkflowVersions,
@@ -60,6 +61,7 @@ export default function WorkflowEditorPage() {
     { workflowId },
     { query: { enabled: Boolean(workflowId), queryKey: getListWebhooksQueryKey({ workflowId }) } },
   );
+  const createWebhook = useCreateWebhook();
   const restoreVersion = useRestoreWorkflowVersion();
   const updateWorkflow = useUpdateWorkflow();
   const executeWorkflow = useExecuteWorkflow();
@@ -79,6 +81,20 @@ export default function WorkflowEditorPage() {
   const webhookUrl = webhookToken
     ? `${window.location.origin}/api/webhooks/${webhookToken}`
     : undefined;
+
+  function handleCreateWebhook() {
+    createWebhook.mutate(
+      { data: { workflowId } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListWebhooksQueryKey({ workflowId }) });
+        },
+        onError: () => {
+          toast({ title: "Could not generate webhook URL", variant: "destructive" });
+        },
+      },
+    );
+  }
 
   // ── Action refs (stable across renders for keyboard handler) ──────────────
   const handleSaveRef = useRef<() => void>(() => undefined);
@@ -384,6 +400,8 @@ export default function WorkflowEditorPage() {
             onDelete={editor.deleteNode}
             onClose={() => editor.selectNode(null)}
             webhookUrl={webhookUrl}
+            onCreateWebhook={handleCreateWebhook}
+            isCreatingWebhook={createWebhook.isPending}
           />
         </div>
       </div>

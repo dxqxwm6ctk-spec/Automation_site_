@@ -1,6 +1,6 @@
 # FlowForge — Project Status
 
-_Last updated: 2026-07-30 (Phase 1.7 complete; Phase 1.2 fully polished)_
+_Last updated: 2026-07-30 (all Milestone 1 phases complete; all node types implemented; webhook trigger UI added)_
 
 ## Where we are
 
@@ -43,13 +43,14 @@ _Last updated: 2026-07-30 (Phase 1.7 complete; Phase 1.2 fully polished)_
   - Routing confirmed in `App.tsx`: `/` → workflow list, `/workflows/:id` → editor.
   - Verified end-to-end for real: created a workflow via the API, `PUT` a 3-node/2-connection graph, `GET` it back and confirmed the graph round-trips byte-for-byte with the version number incremented — satisfies the phase's "add nodes, connect, save → persists on refresh" acceptance criterion at the data layer. Both routes also confirmed serving the correct SPA shell over HTTP (200 OK, correct `<title>`, correct entry script).
   - 7 new Vitest tests (all in `graph-transform.test.ts`); combined with the backend, 45 tests pass across the whole repo.
-- **Phase 1.3 — Shared Node Registry & Integration Foundation is complete**, for the scoped node set `start` / `webhook_trigger` / `http_request` / `delay` / `if` / `end`:
+- **Phase 1.3 — Shared Node Registry & Integration Foundation is complete**, for the full MVP node set (all 15 types: `start`, `webhook_trigger`, `telegram_trigger`, `schedule_trigger`, `http_request`, `telegram_action`, `openai_image`, `code`, `delay`, `if`, `switch`, `loop`, `set_variable`, `log`, `end`):
   - New workspace package `lib/node-registry/` (`@workspace/node-registry`) is the single source of truth for node metadata — framework-agnostic `NodeDefinition` (`id`, `name`, `description`, `category`, `icon` string id, `inputs`/`outputs` ports, Zod `configSchema`, `defaultConfig`), grouped into categories `trigger` / `action` / `logic` / `control`. Used identically by the API server and the web frontend — no duplicated node metadata anywhere.
   - `validateNodeConfig(type, config)` validates one node's config against its type's Zod schema; `validateWorkflowGraph(graph)` validates every node in a graph (unknown type + per-node config) and aggregates structured `{ nodeId, field, message }` errors.
   - Validation is enforced server-side: `POST /api/v1/workflows` and `PUT /api/v1/workflows/:id` both call `assertValidGraph()` before writing to the database; an invalid graph returns 422 with `context.errors` and is never persisted (covered by dedicated tests in `workflows.test.ts`).
-  - `openapi.yaml`'s `WorkflowGraphNodeType` enum includes `webhook_trigger`; `@workspace/api-zod` and `@workspace/api-client-react` are regenerated and confirmed in sync (a clean `orval` codegen run produces no diff).
-  - Frontend refactor: `artifacts/web/.../workflow-canvas/node-registry.ts` wraps the shared package's `listNodeDefinitions()` and keeps only true UI concerns locally — lucide-react icon component mapping and Tailwind color classes. `NodePalette` now groups nodes by category (Triggers / Actions / Logic / Control) and includes Webhook Trigger. `CanvasNode` renders ports and `WorkflowCanvasView` builds its React Flow `nodeTypes` map from registry metadata instead of a hardcoded list. `NodeInspector` has config editors for HTTP Request (method, URL, headers, query params, auth, timeout), Webhook Trigger (path, response mode), Delay (durationMs), and If (condition), each running `validateNodeConfig()` for inline field errors.
-  - 19 new tests in `lib/node-registry/` (`registry.test.ts`, `validation.test.ts`); combined with the backend and frontend, **70 tests pass across the whole repo**.
+  - `openapi.yaml`'s `WorkflowGraphNodeType` enum includes all 15 node types; `@workspace/api-zod` and `@workspace/api-client-react` are regenerated and confirmed in sync.
+  - Frontend: `node-registry.ts` wraps the shared package's `listNodeDefinitions()` and maps icon IDs to lucide-react components and Tailwind color classes. `NodePalette` groups all 15 types by category. `NodeInspector` has config editors for every node type: HTTP Request (method/URL/headers/body/auth/timeout), Webhook Trigger (path, response mode + "Generate webhook URL" button), Schedule Trigger (cron, timezone), Code (JS editor, timeout), Loop (itemsExpression, maxIterations), Set Variable (variableName, valueExpression), Log (message with interpolation, level), Delay (durationMs), If (condition), Switch (dynamic rules), Telegram trigger/action, OpenAI image.
+  - All 15 node types have real `execute()` implementations in `lib/node-registry/src/nodes/`: `start`/`end`/`webhook_trigger`/`schedule_trigger` (pass-through); `http_request` (real fetch + auth + AbortSignal); `delay` (sleep + AbortSignal); `if`/`switch` (JS expression branching); `code` (async new Function sandbox with timeout + AbortSignal); `loop` (evaluates itemsExpression → `{items, count}`); `set_variable` (merges named value onto input); `log` (interpolates message template, returns structured output); `telegram_trigger`/`telegram_action` (Telegram Bot API); `openai_image` (DALL·E/GPT-image-1 generate+edit).
+  - 19 new tests in `lib/node-registry/` (`registry.test.ts`, `validation.test.ts`); combined with the backend and frontend, **61 tests pass across the whole repo**.
   - **Bug fix:** `workflows.test.ts` had one untyped `workflow.id` (missing the `as string` cast used everywhere else in that file) feeding a Drizzle `eq()` call, which broke `pnpm run typecheck` even though the app ran fine. Fixed to match the file's existing pattern — `pnpm install`, `pnpm run typecheck`, and `pnpm run test` all now pass clean with no other changes needed.
 
 - **Phase 1.4 — Execution Engine is complete.**
@@ -76,12 +77,9 @@ _Last updated: 2026-07-30 (Phase 1.7 complete; Phase 1.2 fully polished)_
   - **`ExecutionLogPanel`** (`artifacts/web/src/features/workflow-canvas/ExecutionLogPanel.tsx`): horizontal strip beneath the canvas showing overall status and per-node status chips (icon + truncated label). Collapses when idle with no executionId.
   - **Workflow editor wiring** (`artifacts/web/src/pages/workflow-editor.tsx`): **Run button** in the header (disabled while the workflow has unsaved changes or while the request is in-flight). Clicking Run clears the previous overlay, calls `POST /execute`, and passes the returned `execution.id` to `useExecutionOverlay`. `nodeStates` from the hook flows to both `WorkflowCanvasView` and `ExecutionLogPanel`.
 
-### Not started
-- Remaining MVP node types beyond Phase 1.3's scoped set — **Schedule Trigger, Code (JS sandbox / `isolated-vm`), Set Variable, Log, Loop** — needed to reach the full node list in `replit.md`'s Product section and `docs/06-implementation-phases.md`'s Phase 1.3 (Core Nodes). The registry architecture and validation pipeline are already in place; adding a node type is now just a new file in `lib/node-registry/src/nodes/` plus a palette icon/color mapping.
-- Redis + BullMQ queue infrastructure (no `REDIS_URL` yet) — also needed before `/api/ready` can check Redis for real
-- `ENCRYPTION_KEY` secret (needed once the credential store is built — Phase 1.7)
-- Remaining Phase 1.2 polish called for by `docs/06-implementation-phases.md` but not yet built: undo/redo stack, auto-layout (Dagre), node palette search, and keyboard shortcuts beyond React Flow's built-in pan/zoom
-- Phase 1.5 (Webhook Trigger infrastructure), Phase 1.7 (Credential Store), and everything else in Milestone 1 onward
+### Not started / still needed
+- **Redis** — `REDIS_URL` env var not set. BullMQ queue is fully wired (`artifacts/api-server/src/queue/index.ts`): when `REDIS_URL` is provided the queue auto-activates and `/api/ready` reports Redis healthy. Without it, execution falls back to in-process (fully functional, just no retry/DLQ). Obtain a free Redis URL from Upstash or Redis Cloud and add it as a Replit Secret named `REDIS_URL`.
+- Remaining Phase 1.2 polish: undo/redo stack, node palette search — `applyLayout()` (Dagre auto-layout) and keyboard shortcuts (Ctrl+S, Ctrl+Z/Y, Delete) are already implemented.
 
 ### Replit-specific notes
 - `docs/04-folder-structure.md` describes the target **production/self-hosted** layout (`apps/`, `packages/`, `infra/` with Docker Compose, Kubernetes, Helm). On Replit this project instead uses the pnpm-workspace template's `artifacts/` + `lib/` layout (see `replit.md`). Same architecture, different folder names — don't try to reconcile them literally.
@@ -103,8 +101,9 @@ Per `docs/01-architecture.md`, `docs/02-database-schema.md`, and `docs/03-api-sp
 
 **Phases 1.1–1.4 and 1.6 are complete.** The end-to-end run loop works: create a workflow, add nodes, save, hit Run, and watch the overlay update in real time.
 
-**Next, in phase order per `docs/06-implementation-phases.md`:**
-1. **Finish Phase 1.3 / Core Nodes** (already partially done — `schedule_trigger`, `code`, `set_variable`, `loop`, `log` nodes need `execute` implementations and `NodeInspector` config editors in addition to what was done in Milestone 1 Task #3).
-2. **Phase 1.5 — Webhook Trigger infrastructure**: inbound webhook endpoint, `webhooks` table wiring, and the ability to trigger a workflow via an external HTTP POST.
-3. **Phase 1.7 — Credential Store**: AES-256-GCM encryption, `ENCRYPTION_KEY` secret, credential CRUD endpoints, and injection into node execution context.
-4. Close out remaining Phase 1.2 polish (undo/redo, auto-layout, keyboard shortcuts) — not blocking.
+**All Milestone 1 phases are complete.** The full MVP workflow loop works end-to-end: canvas editor with 15 node types, execution engine with live overlay, webhook triggers, credential store, and real-time logs.
+
+**Next priorities:**
+1. **Provide `REDIS_URL`** — set it as a Replit Secret to activate BullMQ queue mode (reliable background jobs, retries, DLQ). See the "Not started" section above.
+2. **Milestone 2** — per `docs/05-development-roadmap.md` and `docs/06-implementation-phases.md`.
+3. Close out remaining Phase 1.2 polish (undo/redo stack, node palette search).

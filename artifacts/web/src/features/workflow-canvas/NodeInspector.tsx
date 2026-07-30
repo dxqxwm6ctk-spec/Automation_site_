@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Copy, Plus, Trash2, X } from "lucide-react";
+import { Check, Copy, Link, Loader2, Plus, Trash2, X } from "lucide-react";
 import {
   httpMethods,
   logLevels,
@@ -32,6 +32,10 @@ interface NodeInspectorProps {
   onClose: () => void;
   /** Generated webhook URL (e.g. https://domain/api/webhooks/wh_…) shown on webhook_trigger nodes. */
   webhookUrl?: string;
+  /** Called when the user clicks "Generate webhook URL" — triggers webhook creation. */
+  onCreateWebhook?: () => void;
+  /** True while the webhook is being created. */
+  isCreatingWebhook?: boolean;
 }
 
 /** Returns the first validation message for `field`, if any. */
@@ -158,6 +162,8 @@ export function NodeInspector({
   onDelete,
   onClose,
   webhookUrl,
+  onCreateWebhook,
+  isCreatingWebhook,
 }: NodeInspectorProps) {
   if (!node) {
     return (
@@ -181,6 +187,8 @@ export function NodeInspector({
       onDelete={onDelete}
       onClose={onClose}
       webhookUrl={webhookUrl}
+      onCreateWebhook={onCreateWebhook}
+      isCreatingWebhook={isCreatingWebhook}
     />
   );
 }
@@ -192,6 +200,8 @@ function NodeInspectorContent({
   onDelete,
   onClose,
   webhookUrl,
+  onCreateWebhook,
+  isCreatingWebhook,
 }: NodeInspectorProps & { node: FlowNode }) {
   const definition = NODE_DEFINITIONS[node.data.nodeType];
   const colors = NODE_COLOR_CLASSES[node.data.nodeType];
@@ -288,13 +298,36 @@ function NodeInspectorContent({
         {/* ── webhook_trigger ── */}
         {node.data.nodeType === "webhook_trigger" && (
           <>
-            {webhookUrl && (
+            {webhookUrl ? (
               <div className="space-y-1.5">
                 <Label>Webhook URL</Label>
                 <CopyableUrl url={webhookUrl} />
                 <p className="text-xs text-muted-foreground">
                   POST to this URL to trigger the workflow.
                 </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">
+                  No webhook URL yet. Generate one to receive inbound HTTP triggers.
+                </p>
+                {onCreateWebhook && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5"
+                    onClick={onCreateWebhook}
+                    disabled={isCreatingWebhook}
+                    data-testid="button-generate-webhook-url"
+                  >
+                    {isCreatingWebhook ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Link className="h-3.5 w-3.5" />
+                    )}
+                    Generate webhook URL
+                  </Button>
+                )}
               </div>
             )}
             <div className="space-y-1.5">
