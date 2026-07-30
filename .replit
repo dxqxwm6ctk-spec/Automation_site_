@@ -58,3 +58,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+UPSTASH_REDIS_REST_URL = "https://hot-tetra-151877.upstash.io"

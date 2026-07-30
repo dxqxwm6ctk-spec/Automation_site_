@@ -29,7 +29,7 @@ export interface ExecutionJobData {
   triggerPayload: unknown;
 }
 
-const QUEUE_NAME = "ff:executions";
+const QUEUE_NAME = "ff-executions";
 
 // ── Module state ─────────────────────────────────────────────────────────────
 
@@ -116,10 +116,45 @@ export async function pingRedis(): Promise<"ok" | "error" | "not_configured"> {
  * Initialise the BullMQ queue + in-process worker.
  * No-op (and no error) when REDIS_URL is absent.
  */
+/**
+ * Resolves a usable ioredis URL from any of the supported env-var shapes:
+ *
+ *   REDIS_URL=redis[s]://...              — direct ioredis URL (preferred)
+ *   REDIS_URL=redis-cli --tls -u <url>    — Upstash CLI snippet (extract -u flag)
+ *   UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+ *                                         — Upstash REST credentials; derive
+ *                                           rediss://<token>@<host>:6379
+ *
+ * Returns null when no usable configuration is present.
+ */
+function resolveRedisUrl(): string | null {
+  const raw = process.env["REDIS_URL"];
+  if (raw) {
+    // Extract URL from a pasted Upstash CLI command ("redis-cli --tls -u <url>")
+    const uFlag = raw.match(/\s-u\s+(rediss?:\/\/\S+)/);
+    if (uFlag?.[1]) return uFlag[1];
+    return raw.trim();
+  }
+
+  // Fall back to Upstash REST credentials
+  const restUrl = process.env["UPSTASH_REDIS_REST_URL"];
+  const restToken = process.env["UPSTASH_REDIS_REST_TOKEN"];
+  if (restUrl && restToken) {
+    try {
+      const { hostname } = new URL(restUrl);
+      return `rediss://default:${restToken}@${hostname}:6379`;
+    } catch {
+      logger.warn("Queue: UPSTASH_REDIS_REST_URL is not a valid URL — skipping");
+    }
+  }
+
+  return null;
+}
+
 export async function initQueue(): Promise<void> {
-  const redisUrl = process.env["REDIS_URL"];
+  const redisUrl = resolveRedisUrl();
   if (!redisUrl) {
-    logger.info("Queue: REDIS_URL not set — in-process execution mode");
+    logger.info("Queue: no Redis URL configured — in-process execution mode");
     return;
   }
 
