@@ -70,7 +70,9 @@ autoInstallPeers: false
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - argon2
   - esbuild
+  - msgpackr-extract
   - msw
   - unrs-resolver
 

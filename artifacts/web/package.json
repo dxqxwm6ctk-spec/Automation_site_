@@ -11,7 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@workspace/replit-auth-web": "workspace:*"
+    "@workspace/replit-auth-web": "workspace:*",
+    "@dagrejs/dagre": "^3.0.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -81,9 +83,5 @@
     "vitest": "^4.0.0",
     "wouter": "^3.3.5",
     "zod": "catalog:"
-  },
-  "dependencies": {
-    "@dagrejs/dagre": "^3.0.0",
-    "socket.io-client": "^4.8.3"
   }
 }

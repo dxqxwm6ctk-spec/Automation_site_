@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Calendar, KeyRound, MoreVertical, Plus, Search, Trash2, Variable, Workflow as WorkflowIcon } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
+import { useAuth } from "@workspace/replit-auth-web";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListWorkflowsQueryKey,
@@ -33,6 +34,7 @@ export default function WorkflowsListPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -43,7 +45,10 @@ export default function WorkflowsListPage() {
     [search],
   );
   const { data, isLoading } = useListWorkflows(listParams, {
-    query: { queryKey: getListWorkflowsQueryKey(listParams) },
+    query: {
+      queryKey: getListWorkflowsQueryKey(listParams),
+      enabled: isAuthenticated,
+    },
   });
   const createWorkflow = useCreateWorkflow();
   const deleteWorkflow = useDeleteWorkflow();
