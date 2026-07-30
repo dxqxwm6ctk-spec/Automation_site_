@@ -19,9 +19,13 @@ describe("node registry", () => {
         "if",
         "log",
         "loop",
+        "openai_image",
         "schedule_trigger",
         "set_variable",
         "start",
+        "switch",
+        "telegram_action",
+        "telegram_trigger",
         "webhook_trigger",
       ].sort(),
     );
@@ -65,12 +69,12 @@ describe("node registry", () => {
   it("groups definitions by category", () => {
     const byCategory = listNodeDefinitionsByCategory();
     expect(byCategory.trigger.map((d) => d.id).sort()).toEqual(
-      ["schedule_trigger", "start", "webhook_trigger"].sort(),
+      ["schedule_trigger", "start", "telegram_trigger", "webhook_trigger"].sort(),
     );
     expect(byCategory.action.map((d) => d.id).sort()).toEqual(
-      ["code", "http_request", "log", "set_variable"].sort(),
+      ["code", "http_request", "log", "openai_image", "set_variable", "telegram_action"].sort(),
     );
-    expect(byCategory.logic.map((d) => d.id)).toEqual(["if"]);
+    expect(byCategory.logic.map((d) => d.id).sort()).toEqual(["if", "switch"].sort());
     expect(byCategory.control.map((d) => d.id).sort()).toEqual(["delay", "end", "loop"].sort());
   });
 });

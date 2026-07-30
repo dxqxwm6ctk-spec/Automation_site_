@@ -1,6 +1,7 @@
 import { createServer } from "http";
 import app from "./app";
 import { initSocketServer } from "./realtime/socket";
+import { bootstrapScheduler } from "./scheduler/schedulerService";
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -28,4 +29,9 @@ httpServer.listen(port, (err?: Error) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
+
+  // Arm cron timers for every active workflow with a schedule_trigger node.
+  bootstrapScheduler().catch((e: unknown) =>
+    logger.error({ err: e }, "Scheduler bootstrap failed"),
+  );
 });

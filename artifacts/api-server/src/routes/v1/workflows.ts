@@ -8,13 +8,15 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
-import { db, executions, workflows, workflowVersions } from "@workspace/db";
+import crypto from "node:crypto";
+import { db, executions, webhooks, workflows, workflowVersions } from "@workspace/db";
 import { validateWorkflowGraph, type WorkflowGraphValidationResult } from "@workspace/node-registry";
 import { AppError } from "../../lib/errors";
-import { graphSchema } from "../../lib/graph";
+import { graphSchema, type Graph } from "../../lib/graph";
 import { decodeCursor, encodeCursor } from "../../lib/cursor";
 import { buildExecutionPlan, assertAcyclic, GraphCycleError, GraphStructureError } from "../../engine/graphBuilder";
 import { runExecution } from "../../engine/executionEngine";
+import { scheduleWorkflow, unscheduleWorkflow } from "../../scheduler/schedulerService";
 
 const router = Router();
 
@@ -99,6 +101,36 @@ function formatGraphErrors(errors: WorkflowGraphValidationResult["errors"]): str
  * not-yet-wired-up nodes is a normal, valid thing to save; it just isn't
  * runnable yet.
  */
+// ─── Webhook / scheduler helpers ─────────────────────────────────────────────
+
+/** Extract schedule_trigger config from a graph, or null if absent. */
+function extractScheduleConfig(
+  graph: Graph,
+): { cronExpression: string; timezone: string } | null {
+  const node = graph.nodes.find((n) => n.type === "schedule_trigger");
+  if (!node) return null;
+  const cfg = (node.config ?? {}) as { cronExpression?: string; timezone?: string };
+  return { cronExpression: cfg.cronExpression ?? "0 * * * *", timezone: cfg.timezone ?? "UTC" };
+}
+
+/**
+ * If the graph contains a `webhook_trigger` node and the workflow has no
+ * webhook yet, create one automatically so the editor can show the URL.
+ */
+async function ensureWebhookExists(workflowId: string, graph: Graph): Promise<void> {
+  if (!graph.nodes.some((n) => n.type === "webhook_trigger")) return;
+  const [existing] = await db
+    .select({ id: webhooks.id })
+    .from(webhooks)
+    .where(eq(webhooks.workflowId, workflowId))
+    .limit(1);
+  if (existing) return;
+  const token = `wh_${crypto.randomUUID().replace(/-/g, "")}`;
+  await db.insert(webhooks).values({ workflowId, token, method: "POST", responseMode: "immediate" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function assertValidGraph(graph: z.infer<typeof graphSchema>): void {
   const result = validateWorkflowGraph(graph);
   const errors = [...result.errors];
@@ -225,6 +257,9 @@ router.post("/", async (req, res) => {
     .where(eq(workflows.id, workflow.id))
     .returning();
 
+  // 4. Auto-create a webhook if the graph has a webhook_trigger node
+  await ensureWebhookExists(workflow.id, body.graph);
+
   res.status(201).json({ workflow: updated, version });
 });
 
@@ -279,6 +314,17 @@ router.put("/:workflowId", async (req, res) => {
     .set({ activeVersionId: version.id, updatedAt: new Date() })
     .where(eq(workflows.id, workflow.id))
     .returning();
+
+  // Auto-create webhook + update schedule based on the new graph
+  await ensureWebhookExists(workflow.id, body.graph);
+
+  const schedCfg = extractScheduleConfig(body.graph);
+  if (schedCfg && updated.isActive) {
+    scheduleWorkflow(workflow.id, schedCfg.cronExpression, schedCfg.timezone);
+  } else if (!schedCfg) {
+    // Graph no longer has a schedule_trigger — cancel any existing job
+    unscheduleWorkflow(workflow.id);
+  }
 
   res.json({
     workflow: updated,
@@ -374,6 +420,27 @@ router.patch("/:workflowId", async (req, res) => {
     .where(and(eq(workflows.id, req.params.workflowId), isNull(workflows.deletedAt)))
     .returning();
 
+  // When isActive changes, update the cron schedule accordingly
+  if (body.isActive !== undefined && updated.activeVersionId) {
+    if (body.isActive) {
+      // Workflow was just activated — load graph and arm schedule if needed
+      const [version] = await db
+        .select()
+        .from(workflowVersions)
+        .where(eq(workflowVersions.id, updated.activeVersionId))
+        .limit(1);
+      if (version) {
+        try {
+          const graph = graphSchema.parse(version.graphJson);
+          const schedCfg = extractScheduleConfig(graph);
+          if (schedCfg) scheduleWorkflow(updated.id, schedCfg.cronExpression, schedCfg.timezone);
+        } catch { /* ignore parse errors */ }
+      }
+    } else {
+      unscheduleWorkflow(updated.id);
+    }
+  }
+
   res.json({ workflow: updated });
 });
 
@@ -387,6 +454,9 @@ router.delete("/:workflowId", async (req, res) => {
     .update(workflows)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(eq(workflows.id, req.params.workflowId));
+
+  // Cancel any cron job for this workflow
+  unscheduleWorkflow(req.params.workflowId);
 
   res.status(204).send();
 });
