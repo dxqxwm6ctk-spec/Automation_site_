@@ -4,6 +4,7 @@ import { initSocketServer } from "./realtime/socket";
 import { bootstrapScheduler } from "./scheduler/schedulerService";
 import { initQueue } from "./queue";
 import { logger } from "./lib/logger";
+import { syncTelegramWebhooks } from "./lib/syncTelegramWebhooks";
 
 const rawPort = process.env["PORT"];
 
@@ -39,5 +40,10 @@ httpServer.listen(port, (err?: Error) => {
   // Arm cron timers for every active workflow with a schedule_trigger node.
   bootstrapScheduler().catch((e: unknown) =>
     logger.error({ err: e }, "Scheduler bootstrap failed"),
+  );
+
+  // Ensure Telegram's Bot API always points at this server's public URL.
+  syncTelegramWebhooks().catch((e: unknown) =>
+    logger.error({ err: e }, "Telegram webhook sync failed"),
   );
 });
