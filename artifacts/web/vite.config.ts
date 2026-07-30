@@ -56,6 +56,18 @@ export default defineConfig({
         '..',
         'attached_assets',
       ),
+      '@workspace/replit-auth-web': path.resolve(
+        import.meta.dirname,
+        '../../lib/replit-auth-web/src/index.ts',
+      ),
+      '@workspace/api-client-react': path.resolve(
+        import.meta.dirname,
+        '../../lib/api-client-react/src/index.ts',
+      ),
+      '@workspace/node-registry': path.resolve(
+        import.meta.dirname,
+        '../../lib/node-registry/src/index.ts',
+      ),
     },
     dedupe: ['react', 'react-dom'],
   },
