@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ReadinessStatusChecks = {
-  postgres: string;
-  redis: string;
-  queue: string;
-};
+export interface ErrorEnvelope {
+  error: string;
+}

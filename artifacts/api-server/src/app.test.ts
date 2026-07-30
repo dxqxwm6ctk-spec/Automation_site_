@@ -17,13 +17,13 @@ describe("GET /api/healthz", () => {
 });
 
 describe("GET /api/ready", () => {
-  it("returns 200 with postgres ok and redis not_configured", async () => {
+  it("returns 200 with postgres ok, redis not_configured, queue in-process", async () => {
     const res = await request(app).get("/api/ready");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       status: "ok",
-      checks: { postgres: "ok", redis: "not_configured" },
+      checks: { postgres: "ok", redis: "not_configured", queue: "in-process" },
     });
   });
 });

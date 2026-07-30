@@ -1,25 +1,19 @@
 import type { NextFunction, Request, Response } from "express";
-import { verifyToken, type JwtPayload } from "../lib/jwt";
-
-// Extend Express Request so downstream handlers can read req.user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: JwtPayload;
-    }
-  }
-}
+import { verifyToken } from "../lib/jwt";
 
 /**
- * Reads a Bearer token from the Authorization header and attaches the decoded
- * payload to `req.user`. Continues without error when no token is present
- * (unauthenticated access is still allowed in MVP mode).
+ * Legacy JWT-based optional auth middleware.
+ * @deprecated Replaced by the OIDC-based authMiddleware from authMiddleware.ts.
+ * Kept to avoid breaking any callers that have not been migrated yet.
+ * `req.user` is now typed via the global declaration in authMiddleware.ts.
  */
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     try {
-      req.user = verifyToken(authHeader.slice(7));
+      const payload = verifyToken(authHeader.slice(7));
+      // @ts-expect-error — JwtPayload shape differs from AuthUser; legacy path only
+      req.user = payload;
     } catch {
       // expired / invalid — treat as unauthenticated
     }
@@ -28,8 +22,8 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 }
 
 /**
- * Like optionalAuth but returns 401 if no valid token is present.
- * Use this on routes that require a logged-in user.
+ * Legacy JWT-based require-auth middleware.
+ * @deprecated Replaced by the OIDC-based authMiddleware from authMiddleware.ts.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
@@ -38,7 +32,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
   try {
-    req.user = verifyToken(authHeader.slice(7));
+    const payload = verifyToken(authHeader.slice(7));
+    // @ts-expect-error — JwtPayload shape differs from AuthUser; legacy path only
+    req.user = payload;
     next();
   } catch {
     res.status(401).json({ status: 401, title: "Unauthorized", detail: "Invalid or expired token." });

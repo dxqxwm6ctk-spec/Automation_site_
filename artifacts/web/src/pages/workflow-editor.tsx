@@ -11,6 +11,7 @@ import {
   Save,
   Undo2,
 } from "lucide-react";
+import { UserMenu } from "@/components/UserMenu";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetWorkflowQueryKey,
@@ -349,6 +350,8 @@ export default function WorkflowEditorPage() {
               )}
               Run
             </Button>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <UserMenu />
           </div>
         </header>
 

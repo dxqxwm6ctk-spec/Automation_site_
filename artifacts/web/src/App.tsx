@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { QueueModeBanner } from '@/components/QueueModeBanner';
 import CredentialsPage from '@/pages/credentials';
 import NotFound from '@/pages/not-found';
 import WorkflowEditorPage from '@/pages/workflow-editor';
@@ -24,6 +25,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <QueueModeBanner />
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>

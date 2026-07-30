@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { KeyRound, MoreVertical, Plus, Search, Trash2, Workflow as WorkflowIcon } from "lucide-react";
+import { UserMenu } from "@/components/UserMenu";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListWorkflowsQueryKey,
@@ -97,6 +98,7 @@ export default function WorkflowsListPage() {
                 Credentials
               </Button>
             </Link>
+            <UserMenu />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-1.5" data-testid="button-new-workflow">

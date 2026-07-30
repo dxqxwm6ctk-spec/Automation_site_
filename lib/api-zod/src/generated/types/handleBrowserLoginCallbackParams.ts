@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ReadinessStatusChecks = {
-  postgres: string;
-  redis: string;
-  queue: string;
+export type HandleBrowserLoginCallbackParams = {
+code?: string;
+state?: string;
+iss?: string;
 };

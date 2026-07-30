@@ -77,6 +77,11 @@ export function isQueueReady(): boolean {
   return _queue !== null;
 }
 
+/** Returns the current execution mode: "redis" when BullMQ is active, "in-process" otherwise. */
+export function getQueueMode(): "redis" | "in-process" {
+  return _queue !== null ? "redis" : "in-process";
+}
+
 /**
  * Enqueue a new execution job.  Only call after confirming isQueueReady().
  * The job gets 3 attempts with exponential back-off (2 s, 4 s, 8 s).
@@ -99,7 +104,8 @@ export async function pingRedis(): Promise<"ok" | "error" | "not_configured"> {
   if (!_queue) return "not_configured";
   try {
     const client = await _queue.client;
-    await client.ping();
+    // ioredis client exposes ping() but the BullMQ type is narrower; cast to any
+    await (client as unknown as { ping(): Promise<unknown> }).ping();
     return "ok";
   } catch {
     return "error";
