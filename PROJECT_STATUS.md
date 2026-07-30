@@ -1,10 +1,10 @@
 # FlowForge — Project Status
 
-_Last updated: 2026-07-29 (Phase 1.6 complete)_
+_Last updated: 2026-07-30 (Phase 1.7 complete; Phase 1.2 fully polished)_
 
 ## Where we are
 
-**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): Phases 1.1–1.4 are complete, and Phase 1.6 (Live Execution Overlay) is complete.** The core workflow loop now works end-to-end: build a graph on the canvas, press Run, and watch each node highlight in real time as it executes — amber pulse while running, green on success, red on failure — with animated edges tracing the live path and an execution log panel beneath the canvas. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
+**Milestone 0 (Foundation) is complete. Milestone 1 (MVP): all phases 1.1–1.7 are complete.** The core workflow loop now works end-to-end: build a graph on the canvas, press Run, and watch each node highlight in real time as it executes — amber pulse while running, green on success, red on failure — with animated edges tracing the live path and an execution log panel beneath the canvas. This file tracks progress against the phase breakdown in `docs/06-implementation-phases.md`; update it as phases complete.
 
 ### Done
 

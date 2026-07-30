@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { Check, Copy, Plus, Trash2, X } from "lucide-react";
 import {
   httpMethods,
   logLevels,
@@ -30,9 +30,11 @@ interface NodeInspectorProps {
   onChangeConfig: (nodeId: string, config: Record<string, unknown>) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
+  /** Generated webhook URL (e.g. https://domain/api/webhooks/wh_…) shown on webhook_trigger nodes. */
+  webhookUrl?: string;
 }
 
-/** Returns the first validation message for `field` (or a nested `field.*` key, e.g. a header entry), if any. */
+/** Returns the first validation message for `field`, if any. */
 function messageForField(errors: FieldError[], field: string): string | undefined {
   return errors.find((error) => error.field === field || error.field.startsWith(`${field}.`))
     ?.message;
@@ -50,7 +52,7 @@ interface JsonRecordFieldProps {
 /**
  * A JSON-object textarea (used for HTTP headers/query params). Keeps its own
  * draft text so an in-progress, momentarily-invalid edit never overwrites the
- * node's real config — only well-formed JSON objects are committed.
+ * node's real config.
  */
 function JsonRecordField({ id, label, value, placeholder, onCommit, errorMessage }: JsonRecordFieldProps) {
   const [text, setText] = useState(() => JSON.stringify(value ?? {}, null, 2));
@@ -93,12 +95,69 @@ function JsonRecordField({ id, label, value, placeholder, onCommit, errorMessage
   );
 }
 
+/** A read-only URL row with a copy-to-clipboard button. */
+function CopyableUrl({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    void navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1.5">
+      <code className="min-w-0 flex-1 truncate text-xs">{url}</code>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 text-muted-foreground hover:text-foreground"
+        title="Copy URL"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+/** A small helper input row with an expression-friendly placeholder. */
+function ExprInput({
+  id,
+  label,
+  value,
+  placeholder,
+  onChange,
+  hint,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  hint?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
 export function NodeInspector({
   node,
   onChangeLabel,
   onChangeConfig,
   onDelete,
   onClose,
+  webhookUrl,
 }: NodeInspectorProps) {
   if (!node) {
     return (
@@ -113,9 +172,6 @@ export function NodeInspector({
     );
   }
 
-  // Keyed on the node id so every field's local draft state (JsonRecordField's
-  // text, etc.) resets cleanly when the selected node changes instead of
-  // carrying over stale text from the previously selected node.
   return (
     <NodeInspectorContent
       key={node.id}
@@ -124,6 +180,7 @@ export function NodeInspector({
       onChangeConfig={onChangeConfig}
       onDelete={onDelete}
       onClose={onClose}
+      webhookUrl={webhookUrl}
     />
   );
 }
@@ -134,6 +191,7 @@ function NodeInspectorContent({
   onChangeConfig,
   onDelete,
   onClose,
+  webhookUrl,
 }: NodeInspectorProps & { node: FlowNode }) {
   const definition = NODE_DEFINITIONS[node.data.nodeType];
   const colors = NODE_COLOR_CLASSES[node.data.nodeType];
@@ -166,6 +224,25 @@ function NodeInspectorContent({
     patchConfig({ auth: { ...auth, ...patch } });
   }
 
+  // ── Switch rules helpers ───────────────────────────────────────────────────
+  const switchRules = (config.rules as Array<{ condition: string; label: string }> | undefined) ?? [];
+
+  function updateSwitchRule(index: number, patch: Partial<{ condition: string; label: string }>) {
+    const next = switchRules.map((r, i) => (i === index ? { ...r, ...patch } : r));
+    patchConfig({ rules: next });
+  }
+
+  function addSwitchRule() {
+    patchConfig({ rules: [...switchRules, { condition: "", label: `Case ${switchRules.length + 1}` }] });
+  }
+
+  function removeSwitchRule(index: number) {
+    patchConfig({ rules: switchRules.filter((_, i) => i !== index) });
+  }
+
+  // ── Telegram action helpers ────────────────────────────────────────────────
+  const tgOp = (config.operation as string) ?? "send_message";
+
   return (
     <aside
       className="flex w-80 shrink-0 flex-col border-l bg-sidebar"
@@ -195,6 +272,7 @@ function NodeInspectorContent({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {/* ── Label ── */}
         <div className="space-y-1.5">
           <Label htmlFor="node-label">Label</Label>
           <Input
@@ -207,8 +285,18 @@ function NodeInspectorContent({
 
         <Separator />
 
+        {/* ── webhook_trigger ── */}
         {node.data.nodeType === "webhook_trigger" && (
           <>
+            {webhookUrl && (
+              <div className="space-y-1.5">
+                <Label>Webhook URL</Label>
+                <CopyableUrl url={webhookUrl} />
+                <p className="text-xs text-muted-foreground">
+                  POST to this URL to trigger the workflow.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="node-webhook-path">Path</Label>
               <Input
@@ -243,6 +331,275 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── telegram_trigger ── */}
+        {node.data.nodeType === "telegram_trigger" && (
+          <ExprInput
+            id="node-tg-trigger-token"
+            label="Bot Token"
+            value={(config.botToken as string) ?? ""}
+            placeholder="env:TELEGRAM_BOT_TOKEN"
+            onChange={(v) => patchConfig({ botToken: v })}
+            hint="Use env:VAR_NAME to read from an environment variable."
+          />
+        )}
+
+        {/* ── telegram_action ── */}
+        {node.data.nodeType === "telegram_action" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-tg-op">Operation</Label>
+              <Select
+                value={tgOp}
+                onValueChange={(v) => patchConfig({ operation: v })}
+              >
+                <SelectTrigger id="node-tg-op">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="send_message">Send Message</SelectItem>
+                  <SelectItem value="send_photo">Send Photo</SelectItem>
+                  <SelectItem value="answer_callback_query">Answer Callback Query</SelectItem>
+                  <SelectItem value="get_file">Get File</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <ExprInput
+              id="node-tg-token"
+              label="Bot Token"
+              value={(config.botToken as string) ?? ""}
+              placeholder="env:TELEGRAM_BOT_TOKEN"
+              onChange={(v) => patchConfig({ botToken: v })}
+              hint="Use env:VAR_NAME or =expr syntax."
+            />
+
+            {(tgOp === "send_message" || tgOp === "send_photo") && (
+              <ExprInput
+                id="node-tg-chat"
+                label="Chat ID"
+                value={(config.chatId as string) ?? ""}
+                placeholder="=$input?.chatId"
+                onChange={(v) => patchConfig({ chatId: v })}
+              />
+            )}
+
+            {tgOp === "send_message" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="node-tg-text">Text</Label>
+                <Textarea
+                  id="node-tg-text"
+                  rows={3}
+                  placeholder="Hello!"
+                  value={(config.text as string) ?? ""}
+                  onChange={(e) => patchConfig({ text: e.target.value })}
+                />
+              </div>
+            )}
+
+            {tgOp === "send_photo" && (
+              <>
+                <ExprInput
+                  id="node-tg-photo"
+                  label="Photo (URL / base64 / file_id)"
+                  value={(config.photoData as string) ?? ""}
+                  placeholder="=$input?.imageDataUrl"
+                  onChange={(v) => patchConfig({ photoData: v })}
+                />
+                <ExprInput
+                  id="node-tg-caption"
+                  label="Caption"
+                  value={(config.caption as string) ?? ""}
+                  placeholder="=$input?.productName"
+                  onChange={(v) => patchConfig({ caption: v })}
+                />
+                <ExprInput
+                  id="node-tg-reply-markup"
+                  label="Reply Markup (JSON)"
+                  value={(config.replyMarkup as string) ?? ""}
+                  placeholder='{"inline_keyboard":[[{"text":"Click","callback_data":"cb"}]]}'
+                  onChange={(v) => patchConfig({ replyMarkup: v })}
+                />
+                <ExprInput
+                  id="node-tg-reply-to"
+                  label="Reply-to Message ID"
+                  value={(config.replyToMessageId as string) ?? ""}
+                  placeholder="=$input?.origMessageId"
+                  onChange={(v) => patchConfig({ replyToMessageId: v })}
+                />
+              </>
+            )}
+
+            {tgOp === "answer_callback_query" && (
+              <>
+                <ExprInput
+                  id="node-tg-cb-id"
+                  label="Callback Query ID"
+                  value={(config.callbackQueryId as string) ?? ""}
+                  placeholder="=$input?.callback_query?.id"
+                  onChange={(v) => patchConfig({ callbackQueryId: v })}
+                />
+                <ExprInput
+                  id="node-tg-cb-text"
+                  label="Notification Text"
+                  value={(config.callbackText as string) ?? ""}
+                  placeholder="Processing…"
+                  onChange={(v) => patchConfig({ callbackText: v })}
+                />
+              </>
+            )}
+
+            {tgOp === "get_file" && (
+              <ExprInput
+                id="node-tg-file-id"
+                label="File ID"
+                value={(config.fileId as string) ?? ""}
+                placeholder="=$input?.fileId"
+                onChange={(v) => patchConfig({ fileId: v })}
+              />
+            )}
+          </>
+        )}
+
+        {/* ── openai_image ── */}
+        {node.data.nodeType === "openai_image" && (
+          <>
+            <ExprInput
+              id="node-oai-key"
+              label="API Key"
+              value={(config.apiKey as string) ?? ""}
+              placeholder="env:OPENAI_API_KEY"
+              onChange={(v) => patchConfig({ apiKey: v })}
+              hint="Use env:VAR_NAME to keep it out of the graph."
+            />
+            <ExprInput
+              id="node-oai-model"
+              label="Model"
+              value={(config.model as string) ?? "gpt-image-1"}
+              placeholder="gpt-image-1"
+              onChange={(v) => patchConfig({ model: v })}
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="node-oai-op">Operation</Label>
+              <Select
+                value={(config.operation as string) ?? "edit"}
+                onValueChange={(v) => patchConfig({ operation: v })}
+              >
+                <SelectTrigger id="node-oai-op">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="edit">Edit (image + prompt)</SelectItem>
+                  <SelectItem value="generate">Generate (prompt only)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-oai-prompt">Prompt</Label>
+              <Textarea
+                id="node-oai-prompt"
+                rows={4}
+                placeholder="=$input?.builtPrompt"
+                value={(config.prompt as string) ?? ""}
+                onChange={(e) => patchConfig({ prompt: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Prefix with <code className="rounded bg-muted px-1">=</code> to evaluate as JS expression.
+              </p>
+            </div>
+            {(config.operation as string) !== "generate" && (
+              <ExprInput
+                id="node-oai-image"
+                label="Image (URL or base64)"
+                value={(config.imageData as string) ?? ""}
+                placeholder="=$input?.fileUrl"
+                onChange={(v) => patchConfig({ imageData: v })}
+              />
+            )}
+            <ExprInput
+              id="node-oai-size"
+              label="Size"
+              value={(config.size as string) ?? "1024x1536"}
+              placeholder="1024x1536"
+              onChange={(v) => patchConfig({ size: v })}
+              hint="1024x1024, 1024x1536, 1536x1024"
+            />
+            <ExprInput
+              id="node-oai-quality"
+              label="Quality"
+              value={(config.quality as string) ?? "high"}
+              placeholder="high"
+              onChange={(v) => patchConfig({ quality: v })}
+              hint="low, medium, high"
+            />
+          </>
+        )}
+
+        {/* ── switch ── */}
+        {node.data.nodeType === "switch" && (
+          <>
+            <div className="space-y-3">
+              <Label>Rules</Label>
+              {switchRules.length === 0 && (
+                <p className="text-xs text-muted-foreground">No rules yet. Add one below.</p>
+              )}
+              {switchRules.map((rule, i) => (
+                <div key={i} className="space-y-2 rounded-md border p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Rule {i + 1}</span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => removeSwitchRule(i)}
+                      title="Remove rule"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`rule-label-${i}`}>Output label</Label>
+                    <Input
+                      id={`rule-label-${i}`}
+                      placeholder={`Case ${i + 1}`}
+                      value={rule.label}
+                      onChange={(e) => updateSwitchRule(i, { label: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`rule-cond-${i}`}>Condition (JS)</Label>
+                    <Textarea
+                      id={`rule-cond-${i}`}
+                      rows={2}
+                      placeholder="$input?.status === 200"
+                      value={rule.condition}
+                      onChange={(e) => updateSwitchRule(i, { condition: e.target.value })}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                </div>
+              ))}
+              {switchRules.length < 4 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={addSwitchRule}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add rule
+                </Button>
+              )}
+            </div>
+            <ExprInput
+              id="node-switch-fallback"
+              label="Fallback output label"
+              value={(config.fallbackLabel as string) ?? "Default"}
+              onChange={(v) => patchConfig({ fallbackLabel: v })}
+            />
+          </>
+        )}
+
+        {/* ── http_request ── */}
         {node.data.nodeType === "http_request" && (
           <>
             <div className="space-y-1.5">
@@ -415,6 +772,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── delay ── */}
         {node.data.nodeType === "delay" && (
           <div className="space-y-1.5">
             <Label htmlFor="node-duration">Duration (ms)</Label>
@@ -432,13 +790,14 @@ function NodeInspectorContent({
           </div>
         )}
 
+        {/* ── if ── */}
         {node.data.nodeType === "if" && (
           <div className="space-y-1.5">
             <Label htmlFor="node-condition">Condition</Label>
             <Textarea
               id="node-condition"
               rows={3}
-              placeholder="e.g. {{previous.status}} == 200"
+              placeholder="e.g. $input.status === 200"
               value={(config.condition as string) ?? ""}
               onChange={(event) => patchConfig({ condition: event.target.value })}
               data-testid="textarea-if-condition"
@@ -452,6 +811,7 @@ function NodeInspectorContent({
           </div>
         )}
 
+        {/* ── schedule_trigger ── */}
         {node.data.nodeType === "schedule_trigger" && (
           <>
             <div className="space-y-1.5">
@@ -486,6 +846,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── code ── */}
         {node.data.nodeType === "code" && (
           <>
             <div className="space-y-1.5">
@@ -524,6 +885,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── loop ── */}
         {node.data.nodeType === "loop" && (
           <>
             <div className="space-y-1.5">
@@ -561,6 +923,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── set_variable ── */}
         {node.data.nodeType === "set_variable" && (
           <>
             <div className="space-y-1.5">
@@ -596,6 +959,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── log ── */}
         {node.data.nodeType === "log" && (
           <>
             <div className="space-y-1.5">
@@ -636,6 +1000,7 @@ function NodeInspectorContent({
           </>
         )}
 
+        {/* ── start / end ── */}
         {(node.data.nodeType === "start" || node.data.nodeType === "end") && (
           <p className="text-xs text-muted-foreground">{definition.description}</p>
         )}

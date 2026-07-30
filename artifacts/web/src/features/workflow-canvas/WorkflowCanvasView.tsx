@@ -7,6 +7,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   type Edge,
+  type OnNodeDrag,
   type OnConnect,
   type OnEdgesChange,
   type OnNodesChange,
@@ -27,6 +28,7 @@ interface WorkflowCanvasViewProps {
   onAddNode: (type: NodeTypeId, position: { x: number; y: number }) => void;
   onNodeClick: (nodeId: string) => void;
   onPaneClick: () => void;
+  onNodeDragStop?: OnNodeDrag;
   /** Live per-node execution state — injected into each node's data for overlay rendering. */
   nodeStates?: ExecutionOverlayState;
 }
@@ -40,6 +42,7 @@ function WorkflowCanvasInner({
   onAddNode,
   onNodeClick,
   onPaneClick,
+  onNodeDragStop,
   nodeStates,
 }: WorkflowCanvasViewProps) {
   const { screenToFlowPosition } = useReactFlow();
@@ -53,8 +56,7 @@ function WorkflowCanvasInner({
   );
 
   // Inject live execution state into each node's data so CanvasNode can render
-  // the overlay without a context. Memoised on nodeStates reference so a new
-  // Map only triggers a re-render when execution events arrive.
+  // the overlay without a context.
   const overlaidNodes = useMemo(
     () =>
       nodeStates && nodeStates.size > 0
@@ -72,8 +74,7 @@ function WorkflowCanvasInner({
     [nodes, nodeStates],
   );
 
-  // Animate edges whose source node is currently running so the active path
-  // is visually obvious without any extra components.
+  // Animate edges whose source node is currently running.
   const animatedEdges = useMemo(
     () =>
       nodeStates && nodeStates.size > 0
@@ -116,6 +117,7 @@ function WorkflowCanvasInner({
         onDragOver={handleDragOver}
         onNodeClick={(_event, node) => onNodeClick(node.id)}
         onPaneClick={onPaneClick}
+        onNodeDragStop={onNodeDragStop}
         fitView
         proOptions={{ hideAttribution: true }}
       >

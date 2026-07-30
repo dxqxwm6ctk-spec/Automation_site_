@@ -1,5 +1,8 @@
+import { useState } from "react";
 import type { NodeCategory } from "@workspace/node-registry";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { NODE_COLOR_CLASSES, listNodeDefinitionsByCategory } from "./node-registry";
 
 export const WORKFLOW_NODE_DND_TYPE = "application/flowforge-node";
@@ -14,15 +17,37 @@ const CATEGORY_LABELS: Record<NodeCategory, string> = {
 };
 
 export function NodePalette() {
+  const [search, setSearch] = useState("");
   const definitionsByCategory = listNodeDefinitionsByCategory();
+  const q = search.trim().toLowerCase();
 
   return (
     <aside
-      className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-r bg-sidebar p-3"
+      className="flex w-64 shrink-0 flex-col gap-3 overflow-y-auto border-r bg-sidebar p-3"
       data-testid="panel-node-palette"
     >
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-8 pl-8 text-sm"
+          placeholder="Search nodes…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          data-testid="input-node-search"
+        />
+      </div>
+
       {CATEGORY_ORDER.map((category) => {
-        const definitions = definitionsByCategory[category];
+        const all = definitionsByCategory[category];
+        const definitions = q
+          ? all.filter(
+              (d) =>
+                d.label.toLowerCase().includes(q) ||
+                d.description.toLowerCase().includes(q) ||
+                d.type.toLowerCase().includes(q),
+            )
+          : all;
         if (definitions.length === 0) return null;
 
         return (
@@ -68,9 +93,24 @@ export function NodePalette() {
           </div>
         );
       })}
-      <p className="mt-1 px-1 text-xs text-muted-foreground">
-        Drag a node onto the canvas to add it.
-      </p>
+
+      {q && CATEGORY_ORDER.every((c) => {
+        const all = definitionsByCategory[c];
+        return all.filter(
+          (d) =>
+            d.label.toLowerCase().includes(q) ||
+            d.description.toLowerCase().includes(q) ||
+            d.type.toLowerCase().includes(q),
+        ).length === 0;
+      }) && (
+        <p className="px-1 text-xs text-muted-foreground">No nodes match "{search}".</p>
+      )}
+
+      {!q && (
+        <p className="mt-1 px-1 text-xs text-muted-foreground">
+          Drag a node onto the canvas to add it.
+        </p>
+      )}
     </aside>
   );
 }

@@ -1,11 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, ChevronDown, History, Loader2, Play, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  History,
+  LayoutDashboard,
+  Loader2,
+  Play,
+  Redo2,
+  Save,
+  Undo2,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetWorkflowQueryKey,
+  getListWebhooksQueryKey,
   getListWorkflowVersionsQueryKey,
   useExecuteWorkflow,
+  useListWebhooks,
   useListWorkflowVersions,
   useRestoreWorkflowVersion,
   useUpdateWorkflow,
@@ -20,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { ExecutionLogPanel } from "@/features/workflow-canvas/ExecutionLogPanel";
 import { NodeInspector } from "@/features/workflow-canvas/NodeInspector";
@@ -42,6 +55,10 @@ export default function WorkflowEditorPage() {
       queryKey: getListWorkflowVersionsQueryKey(workflowId),
     },
   });
+  const webhooksQuery = useListWebhooks(
+    { workflowId },
+    { query: { enabled: Boolean(workflowId), queryKey: getListWebhooksQueryKey({ workflowId }) } },
+  );
   const restoreVersion = useRestoreWorkflowVersion();
   const updateWorkflow = useUpdateWorkflow();
   const executeWorkflow = useExecuteWorkflow();
@@ -56,9 +73,60 @@ export default function WorkflowEditorPage() {
     [editor.nodes],
   );
 
-  if (!workflowId) {
-    return null;
-  }
+  // Webhook URL for the webhook_trigger node inspector
+  const webhookToken = webhooksQuery.data?.webhooks?.[0]?.token;
+  const webhookUrl = webhookToken
+    ? `${window.location.origin}/api/webhooks/${webhookToken}`
+    : undefined;
+
+  // ── Action refs (stable across renders for keyboard handler) ──────────────
+  const handleSaveRef = useRef<() => void>(() => undefined);
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      // Skip when the user is typing in an input or textarea
+      const tag = (event.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      const mod = event.metaKey || event.ctrlKey;
+
+      if (mod && event.key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        editorRef.current.undo();
+        return;
+      }
+      if (mod && (event.key === "y" || (event.key === "z" && event.shiftKey))) {
+        event.preventDefault();
+        editorRef.current.redo();
+        return;
+      }
+      if (mod && event.key === "s") {
+        event.preventDefault();
+        if (editorRef.current.isDirty && !editorRef.current.isSaving) {
+          handleSaveRef.current();
+        }
+        return;
+      }
+      if (event.key === "Delete" || event.key === "Backspace") {
+        const sel = editorRef.current.selectedNode;
+        if (sel) {
+          editorRef.current.deleteNode(sel.id);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        editorRef.current.selectNode(null);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  if (!workflowId) return null;
 
   if (editor.isLoading) {
     return (
@@ -113,10 +181,10 @@ export default function WorkflowEditorPage() {
       });
     }
   }
+  handleSaveRef.current = handleSave;
 
   async function handleRun() {
     try {
-      // Clear previous overlay state before starting a new run.
       overlay.clear();
       setExecutionId(null);
       const result = await executeWorkflow.mutateAsync({ workflowId });
@@ -139,123 +207,183 @@ export default function WorkflowEditorPage() {
   const versions = versionsQuery.data?.versions ?? [];
 
   return (
-    <div className="flex h-screen w-full flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLocation("/")}
-            data-testid="button-back-to-list"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Input
-            value={displayName}
-            onChange={(event) => setNameDraft(event.target.value)}
-            onBlur={commitName}
-            onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
-            className="h-8 w-64 border-transparent bg-transparent text-base font-semibold shadow-none hover:border-input focus-visible:ring-1"
-            data-testid="input-workflow-name"
-          />
-          {editor.isDirty && (
-            <span className="text-xs text-muted-foreground" data-testid="text-unsaved-indicator">
-              Unsaved changes
-            </span>
-          )}
-        </div>
+    <TooltipProvider delayDuration={400}>
+      <div className="flex h-screen w-full flex-col bg-background">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/")}
+              data-testid="button-back-to-list"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Input
+              value={displayName}
+              onChange={(event) => setNameDraft(event.target.value)}
+              onBlur={commitName}
+              onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+              className="h-8 w-64 border-transparent bg-transparent text-base font-semibold shadow-none hover:border-input focus-visible:ring-1"
+              data-testid="input-workflow-name"
+            />
+            {editor.isDirty && (
+              <span className="text-xs text-muted-foreground" data-testid="text-unsaved-indicator">
+                Unsaved changes
+              </span>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-version-history">
-                <History className="h-4 w-4" />
-                Versions
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Version history</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {versions.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">No versions yet.</div>
-              )}
-              {versions.map((version) => (
-                <DropdownMenuItem
-                  key={version.id}
-                  onClick={() => handleRestore(version.id, version.version)}
-                  data-testid={`menuitem-version-${version.version}`}
+          <div className="flex items-center gap-1">
+            {/* Undo */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!editor.canUndo}
+                  onClick={() => editor.undo()}
+                  data-testid="button-undo"
                 >
-                  <span className="flex-1">Version {version.version}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(version.createdAt).toLocaleDateString()}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            onClick={handleSave}
-            disabled={!editor.isDirty || editor.isSaving}
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            data-testid="button-save-workflow"
-          >
-            {editor.isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            Save
-          </Button>
-          <Button
-            onClick={handleRun}
-            disabled={executeWorkflow.isPending || editor.isDirty}
-            size="sm"
-            className="gap-1.5"
-            data-testid="button-run-workflow"
-            title={editor.isDirty ? "Save your changes before running" : "Run workflow"}
-          >
-            {executeWorkflow.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-            Run
-          </Button>
-        </div>
-      </header>
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Undo (⌘Z)</TooltipContent>
+            </Tooltip>
 
-      <div className="flex flex-1 overflow-hidden">
-        <NodePalette />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <WorkflowCanvasView
-            nodes={editor.nodes}
-            edges={editor.edges}
-            onNodesChange={editor.onNodesChange}
-            onEdgesChange={editor.onEdgesChange}
-            onConnect={editor.onConnect}
-            onAddNode={editor.addNode}
-            onNodeClick={editor.selectNode}
-            onPaneClick={() => editor.selectNode(null)}
-            nodeStates={overlay.nodeStates}
-          />
-          <ExecutionLogPanel
-            executionId={executionId}
-            overallStatus={overlay.overallStatus}
-            nodeStates={overlay.nodeStates}
-            nodeLabels={nodeLabels}
+            {/* Redo */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!editor.canRedo}
+                  onClick={() => editor.redo()}
+                  data-testid="button-redo"
+                >
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Redo (⌘Y)</TooltipContent>
+            </Tooltip>
+
+            {/* Auto-layout */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={editor.nodes.length === 0}
+                  onClick={() => editor.applyLayout()}
+                  data-testid="button-auto-layout"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Auto-layout</TooltipContent>
+            </Tooltip>
+
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {/* Version history */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-version-history">
+                  <History className="h-4 w-4" />
+                  Versions
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Version history</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {versions.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No versions yet.</div>
+                )}
+                {versions.map((version) => (
+                  <DropdownMenuItem
+                    key={version.id}
+                    onClick={() => handleRestore(version.id, version.version)}
+                    data-testid={`menuitem-version-${version.version}`}
+                  >
+                    <span className="flex-1">Version {version.version}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(version.createdAt).toLocaleDateString()}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              onClick={handleSave}
+              disabled={!editor.isDirty || editor.isSaving}
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              data-testid="button-save-workflow"
+            >
+              {editor.isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Save
+            </Button>
+
+            <Button
+              onClick={handleRun}
+              disabled={executeWorkflow.isPending || editor.isDirty}
+              size="sm"
+              className="gap-1.5"
+              data-testid="button-run-workflow"
+              title={editor.isDirty ? "Save your changes before running" : "Run workflow"}
+            >
+              {executeWorkflow.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Run
+            </Button>
+          </div>
+        </header>
+
+        <div className="flex flex-1 overflow-hidden">
+          <NodePalette />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <WorkflowCanvasView
+              nodes={editor.nodes}
+              edges={editor.edges}
+              onNodesChange={editor.onNodesChange}
+              onEdgesChange={editor.onEdgesChange}
+              onConnect={editor.onConnect}
+              onAddNode={editor.addNode}
+              onNodeClick={editor.selectNode}
+              onPaneClick={() => editor.selectNode(null)}
+              onNodeDragStop={editor.onNodeDragStop}
+              nodeStates={overlay.nodeStates}
+            />
+            <ExecutionLogPanel
+              executionId={executionId}
+              overallStatus={overlay.overallStatus}
+              nodeStates={overlay.nodeStates}
+              nodeLabels={nodeLabels}
+            />
+          </div>
+          <NodeInspector
+            node={editor.selectedNode}
+            onChangeLabel={editor.updateNodeLabel}
+            onChangeConfig={editor.updateNodeConfig}
+            onDelete={editor.deleteNode}
+            onClose={() => editor.selectNode(null)}
+            webhookUrl={webhookUrl}
           />
         </div>
-        <NodeInspector
-          node={editor.selectedNode}
-          onChangeLabel={editor.updateNodeLabel}
-          onChangeConfig={editor.updateNodeConfig}
-          onDelete={editor.deleteNode}
-          onClose={() => editor.selectNode(null)}
-        />
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
