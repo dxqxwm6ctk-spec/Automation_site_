@@ -20,6 +20,10 @@ tags:
     description: Webhook management and inbound trigger
   - name: credentials
     description: Encrypted credential storage for use by nodes (e.g. HTTP Request auth)
+  - name: schedules
+    description: Cron-based workflow schedules
+  - name: variables
+    description: Workspace-level variables injected into every node as $vars
 paths:
   /healthz:
     get:
@@ -665,6 +669,196 @@ paths:
           description: Execution not found
         "409":
           description: Execution already finished and cannot be cancelled
+  /v1/schedules:
+    get:
+      operationId: listSchedules
+      tags: [schedules]
+      summary: List schedules
+      parameters:
+        - name: workflowId
+          in: query
+          description: Filter by workflow ID.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: A list of schedules
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedules]
+                properties:
+                  schedules:
+                    type: array
+                    items: { $ref: "#/components/schemas/Schedule" }
+    post:
+      operationId: createSchedule
+      tags: [schedules]
+      summary: Create a schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties:
+                  schedule: { $ref: "#/components/schemas/Schedule" }
+        "404":
+          description: Workflow not found
+        "409":
+          description: Workflow already has a schedule
+  /v1/schedules/{scheduleId}:
+    get:
+      operationId: getSchedule
+      tags: [schedules]
+      summary: Get a schedule
+      parameters:
+        - $ref: "#/components/parameters/ScheduleIdParam"
+      responses:
+        "200":
+          description: Schedule detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties:
+                  schedule: { $ref: "#/components/schemas/Schedule" }
+        "404":
+          description: Schedule not found
+    patch:
+      operationId: updateSchedule
+      tags: [schedules]
+      summary: Update a schedule
+      parameters:
+        - $ref: "#/components/parameters/ScheduleIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SchedulePatch" }
+      responses:
+        "200":
+          description: Updated schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schedule]
+                properties:
+                  schedule: { $ref: "#/components/schemas/Schedule" }
+        "404":
+          description: Schedule not found
+    delete:
+      operationId: deleteSchedule
+      tags: [schedules]
+      summary: Delete a schedule
+      parameters:
+        - $ref: "#/components/parameters/ScheduleIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Schedule not found
+  /v1/variables:
+    get:
+      operationId: listVariables
+      tags: [variables]
+      summary: List variables
+      description: Returns all workspace variables. Secret variable values are masked with "***".
+      responses:
+        "200":
+          description: A list of variables
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [variables]
+                properties:
+                  variables:
+                    type: array
+                    items: { $ref: "#/components/schemas/Variable" }
+    post:
+      operationId: createVariable
+      tags: [variables]
+      summary: Create a variable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariableInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [variable]
+                properties:
+                  variable: { $ref: "#/components/schemas/Variable" }
+        "409":
+          description: A variable with this key already exists
+  /v1/variables/{variableId}:
+    get:
+      operationId: getVariable
+      tags: [variables]
+      summary: Get a variable
+      parameters:
+        - $ref: "#/components/parameters/VariableIdParam"
+      responses:
+        "200":
+          description: Variable detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [variable]
+                properties:
+                  variable: { $ref: "#/components/schemas/Variable" }
+        "404":
+          description: Variable not found
+    patch:
+      operationId: updateVariable
+      tags: [variables]
+      summary: Update a variable value or metadata
+      parameters:
+        - $ref: "#/components/parameters/VariableIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariablePatch" }
+      responses:
+        "200":
+          description: Updated variable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [variable]
+                properties:
+                  variable: { $ref: "#/components/schemas/Variable" }
+        "404":
+          description: Variable not found
+    delete:
+      operationId: deleteVariable
+      tags: [variables]
+      summary: Delete a variable
+      parameters:
+        - $ref: "#/components/parameters/VariableIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Variable not found
 components:
   parameters:
     WebhookIdParam:
@@ -689,6 +883,16 @@ components:
       schema: { type: string, format: uuid }
     CredentialIdParam:
       name: credentialId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ScheduleIdParam:
+      name: scheduleId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VariableIdParam:
+      name: variableId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -762,6 +966,64 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         credentialType: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ScheduleInput:
+      type: object
+      required: [workflowId, cronExpression]
+      properties:
+        workflowId: { type: string, format: uuid }
+        cronExpression: { type: string, minLength: 1 }
+        timezone: { type: string, default: UTC }
+        isActive: { type: boolean, default: true }
+    SchedulePatch:
+      type: object
+      properties:
+        cronExpression: { type: string }
+        timezone: { type: string }
+        isActive: { type: boolean }
+    Schedule:
+      type: object
+      required: [id, workflowId, cronExpression, timezone, isActive, lastRunAt, nextRunAt, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        workflowId: { type: string, format: uuid }
+        cronExpression: { type: string }
+        timezone: { type: string }
+        isActive: { type: boolean }
+        lastRunAt: { type: ["string", "null"], format: date-time }
+        nextRunAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VariableInput:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          description: Valid JS identifier (letters, digits, underscore; must start with letter or underscore).
+          pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
+        value: { type: string, default: "" }
+        isSecret: { type: boolean, default: false }
+        description: { type: ["string", "null"] }
+    VariablePatch:
+      type: object
+      properties:
+        value: { type: string }
+        isSecret: { type: boolean }
+        description: { type: ["string", "null"] }
+    Variable:
+      type: object
+      description: A workspace-level variable injected as $vars.<key> into every node context.
+      required: [id, key, value, isSecret, description, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+        value:
+          type: string
+          description: The variable value. Masked as "***" for secret variables.
+        isSecret: { type: boolean }
+        description: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     HealthStatus:

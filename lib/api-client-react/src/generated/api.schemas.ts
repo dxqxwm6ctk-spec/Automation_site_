@@ -65,6 +65,68 @@ export interface Credential {
   updatedAt: string;
 }
 
+export interface ScheduleInput {
+  workflowId: string;
+  /** @minLength 1 */
+  cronExpression: string;
+  timezone?: string;
+  isActive?: boolean;
+}
+
+export interface SchedulePatch {
+  cronExpression?: string;
+  timezone?: string;
+  isActive?: boolean;
+}
+
+export interface Schedule {
+  id: string;
+  workflowId: string;
+  cronExpression: string;
+  timezone: string;
+  isActive: boolean;
+  /** @nullable */
+  lastRunAt: string | null;
+  /** @nullable */
+  nextRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VariableInput {
+  /**
+     * Valid JS identifier (letters, digits, underscore; must start with letter or underscore).
+     * @pattern ^[A-Za-z_][A-Za-z0-9_]*$
+     */
+  key: string;
+  value?: string;
+  isSecret?: boolean;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface VariablePatch {
+  value?: string;
+  isSecret?: boolean;
+  /** @nullable */
+  description?: string | null;
+}
+
+/**
+ * A workspace-level variable injected as $vars.<key> into every node context.
+ */
+export interface Variable {
+  id: string;
+  key: string;
+  /** The variable value. Masked as "***" for secret variables. */
+  value: string;
+  isSecret: boolean;
+  /** @nullable */
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -510,5 +572,44 @@ export type GetExecution200 = {
 
 export type CancelExecution200 = {
   execution: Execution;
+};
+
+export type ListSchedulesParams = {
+/**
+ * Filter by workflow ID.
+ */
+workflowId?: string;
+};
+
+export type ListSchedules200 = {
+  schedules: Schedule[];
+};
+
+export type CreateSchedule201 = {
+  schedule: Schedule;
+};
+
+export type GetSchedule200 = {
+  schedule: Schedule;
+};
+
+export type UpdateSchedule200 = {
+  schedule: Schedule;
+};
+
+export type ListVariables200 = {
+  variables: Variable[];
+};
+
+export type CreateVariable201 = {
+  variable: Variable;
+};
+
+export type GetVariable200 = {
+  variable: Variable;
+};
+
+export type UpdateVariable200 = {
+  variable: Variable;
 };
 

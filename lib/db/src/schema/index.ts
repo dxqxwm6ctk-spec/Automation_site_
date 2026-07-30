@@ -11,5 +11,7 @@ export * from "./credentials";
 export * from "./webhooks";
 // Milestone 2 — Scheduling
 export * from "./schedules";
+// Milestone 2 — Variables
+export * from "./variables";
 // Milestone 4 — Authentication (Replit Auth: sessions + users)
 export * from "./auth";

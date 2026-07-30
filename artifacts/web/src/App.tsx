@@ -4,6 +4,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueueModeBanner } from '@/components/QueueModeBanner';
 import CredentialsPage from '@/pages/credentials';
 import NotFound from '@/pages/not-found';
+import SchedulesPage from '@/pages/schedules';
+import VariablesPage from '@/pages/variables';
 import WorkflowEditorPage from '@/pages/workflow-editor';
 import WorkflowsListPage from '@/pages/workflows-list';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
@@ -15,6 +17,8 @@ function Router() {
     <Switch>
       <Route path="/" component={WorkflowsListPage} />
       <Route path="/credentials" component={CredentialsPage} />
+      <Route path="/schedules" component={SchedulesPage} />
+      <Route path="/variables" component={VariablesPage} />
       <Route path="/workflows/:id" component={WorkflowEditorPage} />
       <Route component={NotFound} />
     </Switch>

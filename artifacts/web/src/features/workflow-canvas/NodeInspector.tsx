@@ -1037,6 +1037,68 @@ function NodeInspectorContent({
         {(node.data.nodeType === "start" || node.data.nodeType === "end") && (
           <p className="text-xs text-muted-foreground">{definition.description}</p>
         )}
+
+        {/* ── retry config (action/logic nodes only) ── */}
+        {definition.category !== "trigger" &&
+          node.data.nodeType !== "start" &&
+          node.data.nodeType !== "end" && (
+          <div className="space-y-3 border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Retry on failure</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="node-retry-attempts">Max attempts</Label>
+              <Select
+                value={String((config.__retry as { maxAttempts?: number } | undefined)?.maxAttempts ?? 1)}
+                onValueChange={(v) =>
+                  patchConfig({
+                    __retry: {
+                      ...(config.__retry as object ?? {}),
+                      maxAttempts: Number(v),
+                    },
+                  })
+                }
+              >
+                <SelectTrigger id="node-retry-attempts" data-testid="select-retry-attempts">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 5].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n === 1 ? "1 (no retry)" : `${n} attempts`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {((config.__retry as { maxAttempts?: number } | undefined)?.maxAttempts ?? 1) > 1 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="node-retry-backoff">Backoff between retries</Label>
+                <Select
+                  value={String((config.__retry as { backoffMs?: number } | undefined)?.backoffMs ?? 1000)}
+                  onValueChange={(v) =>
+                    patchConfig({
+                      __retry: {
+                        ...(config.__retry as object ?? {}),
+                        backoffMs: Number(v),
+                      },
+                    })
+                  }
+                >
+                  <SelectTrigger id="node-retry-backoff">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="500">500 ms</SelectItem>
+                    <SelectItem value="1000">1 s</SelectItem>
+                    <SelectItem value="2000">2 s</SelectItem>
+                    <SelectItem value="5000">5 s</SelectItem>
+                    <SelectItem value="10000">10 s</SelectItem>
+                    <SelectItem value="30000">30 s</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="border-t p-3">

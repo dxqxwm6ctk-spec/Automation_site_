@@ -11,12 +11,20 @@ import { z } from "zod/v4";
  * the workflow CRUD routes (validate + persist on save) and the execution
  * engine (walk on run).
  */
+export const retryConfigSchema = z.object({
+  maxAttempts: z.number().int().min(1).max(10).default(1),
+  backoffMs: z.number().int().min(0).max(60_000).default(1_000),
+}).optional();
+
+export type RetryConfig = z.infer<typeof retryConfigSchema>;
+
 export const graphNodeSchema = z.object({
   key: z.string(),
   type: z.string(),
   label: z.string().nullable().optional(),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
+  retry: retryConfigSchema,
 });
 export type GraphNode = z.infer<typeof graphNodeSchema>;
 

@@ -710,3 +710,214 @@ export const CancelExecutionResponse = zod.object({
 })
 
 
+/**
+ * @summary List schedules
+ */
+export const ListSchedulesQueryParams = zod.object({
+  "workflowId": zod.uuid().optional().describe('Filter by workflow ID.')
+})
+
+export const ListSchedulesResponse = zod.object({
+  "schedules": zod.array(zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "cronExpression": zod.string(),
+  "timezone": zod.string(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.coerce.date().nullable(),
+  "nextRunAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a schedule
+ */
+
+export const createScheduleBodyTimezoneDefault = `UTC`;
+export const createScheduleBodyIsActiveDefault = true;
+
+export const CreateScheduleBody = zod.object({
+  "workflowId": zod.uuid(),
+  "cronExpression": zod.string().min(1),
+  "timezone": zod.string().default(createScheduleBodyTimezoneDefault),
+  "isActive": zod.boolean().default(createScheduleBodyIsActiveDefault)
+})
+
+export const CreateScheduleResponse = zod.object({
+  "schedule": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "cronExpression": zod.string(),
+  "timezone": zod.string(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.coerce.date().nullable(),
+  "nextRunAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Get a schedule
+ */
+export const GetScheduleParams = zod.object({
+  "scheduleId": zod.uuid()
+})
+
+export const GetScheduleResponse = zod.object({
+  "schedule": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "cronExpression": zod.string(),
+  "timezone": zod.string(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.coerce.date().nullable(),
+  "nextRunAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Update a schedule
+ */
+export const UpdateScheduleParams = zod.object({
+  "scheduleId": zod.uuid()
+})
+
+export const UpdateScheduleBody = zod.object({
+  "cronExpression": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateScheduleResponse = zod.object({
+  "schedule": zod.object({
+  "id": zod.uuid(),
+  "workflowId": zod.uuid(),
+  "cronExpression": zod.string(),
+  "timezone": zod.string(),
+  "isActive": zod.boolean(),
+  "lastRunAt": zod.coerce.date().nullable(),
+  "nextRunAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Delete a schedule
+ */
+export const DeleteScheduleParams = zod.object({
+  "scheduleId": zod.uuid()
+})
+
+export const DeleteScheduleResponse = zod.void()
+
+
+/**
+ * Returns all workspace variables. Secret variable values are masked with "***".
+ * @summary List variables
+ */
+export const ListVariablesResponse = zod.object({
+  "variables": zod.array(zod.object({
+  "id": zod.uuid(),
+  "key": zod.string(),
+  "value": zod.string().describe('The variable value. Masked as \"\*\*\*\" for secret variables.'),
+  "isSecret": zod.boolean(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workspace-level variable injected as $vars.<key> into every node context.'))
+})
+
+
+/**
+ * @summary Create a variable
+ */
+export const createVariableBodyKeyRegExp = new RegExp('^[A-Za-z_][A-Za-z0-9_]*$');
+export const createVariableBodyValueDefault = ``;
+export const createVariableBodyIsSecretDefault = false;
+
+export const CreateVariableBody = zod.object({
+  "key": zod.string().regex(createVariableBodyKeyRegExp).describe('Valid JS identifier (letters, digits, underscore; must start with letter or underscore).'),
+  "value": zod.string().default(createVariableBodyValueDefault),
+  "isSecret": zod.boolean().default(createVariableBodyIsSecretDefault),
+  "description": zod.string().nullish()
+})
+
+export const CreateVariableResponse = zod.object({
+  "variable": zod.object({
+  "id": zod.uuid(),
+  "key": zod.string(),
+  "value": zod.string().describe('The variable value. Masked as \"\*\*\*\" for secret variables.'),
+  "isSecret": zod.boolean(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workspace-level variable injected as $vars.<key> into every node context.')
+})
+
+
+/**
+ * @summary Get a variable
+ */
+export const GetVariableParams = zod.object({
+  "variableId": zod.uuid()
+})
+
+export const GetVariableResponse = zod.object({
+  "variable": zod.object({
+  "id": zod.uuid(),
+  "key": zod.string(),
+  "value": zod.string().describe('The variable value. Masked as \"\*\*\*\" for secret variables.'),
+  "isSecret": zod.boolean(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workspace-level variable injected as $vars.<key> into every node context.')
+})
+
+
+/**
+ * @summary Update a variable value or metadata
+ */
+export const UpdateVariableParams = zod.object({
+  "variableId": zod.uuid()
+})
+
+export const UpdateVariableBody = zod.object({
+  "value": zod.string().optional(),
+  "isSecret": zod.boolean().optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateVariableResponse = zod.object({
+  "variable": zod.object({
+  "id": zod.uuid(),
+  "key": zod.string(),
+  "value": zod.string().describe('The variable value. Masked as \"\*\*\*\" for secret variables.'),
+  "isSecret": zod.boolean(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('A workspace-level variable injected as $vars.<key> into every node context.')
+})
+
+
+/**
+ * @summary Delete a variable
+ */
+export const DeleteVariableParams = zod.object({
+  "variableId": zod.uuid()
+})
+
+export const DeleteVariableResponse = zod.void()
+
+

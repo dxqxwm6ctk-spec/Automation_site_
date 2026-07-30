@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { KeyRound, MoreVertical, Plus, Search, Trash2, Workflow as WorkflowIcon } from "lucide-react";
+import { Calendar, KeyRound, MoreVertical, Plus, Search, Trash2, Variable, Workflow as WorkflowIcon } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -92,6 +92,18 @@ export default function WorkflowsListPage() {
             <p className="text-sm text-muted-foreground">Build and manage your automations</p>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/schedules">
+              <Button variant="outline" className="gap-1.5" data-testid="button-nav-schedules">
+                <Calendar className="h-4 w-4" />
+                Schedules
+              </Button>
+            </Link>
+            <Link href="/variables">
+              <Button variant="outline" className="gap-1.5" data-testid="button-nav-variables">
+                <Variable className="h-4 w-4" />
+                Variables
+              </Button>
+            </Link>
             <Link href="/credentials">
               <Button variant="outline" className="gap-1.5" data-testid="button-nav-credentials">
                 <KeyRound className="h-4 w-4" />
