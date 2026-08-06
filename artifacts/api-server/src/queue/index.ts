@@ -27,6 +27,8 @@ export interface ExecutionJobData {
   /** Raw graph_json stored in DB — the worker will parse + plan it. */
   graphJson: unknown;
   triggerPayload: unknown;
+  /** Workflow owner — used to load their variable store (Milestone 2 — Phase 2.2). */
+  userId: string | null;
 }
 
 const QUEUE_NAME = "ff-executions";
@@ -39,7 +41,7 @@ let _worker: Worker<ExecutionJobData> | null = null;
 // ── Worker handler ────────────────────────────────────────────────────────────
 
 async function processJob(job: Job<ExecutionJobData>): Promise<void> {
-  const { executionId, graphJson, triggerPayload } = job.data;
+  const { executionId, graphJson, triggerPayload, userId } = job.data;
 
   let graph;
   try {
@@ -67,7 +69,7 @@ async function processJob(job: Job<ExecutionJobData>): Promise<void> {
   }
 
   // runExecution never rejects — all failures are captured as terminal execution states.
-  await runExecution(executionId, graph, plan, (triggerPayload ?? null) as object | null);
+  await runExecution(executionId, graph, plan, (triggerPayload ?? null) as object | null, userId);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

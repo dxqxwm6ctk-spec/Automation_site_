@@ -93,7 +93,7 @@ async function handleInboundWebhook(
 
   if (webhook.responseMode === "wait_for_completion") {
     // wait_for_completion always runs in-process (we need the result now).
-    await runExecution(execution.id, graph, plan, triggerPayload);
+    await runExecution(execution.id, graph, plan, triggerPayload, workflow.userId);
     const [finished] = await db
       .select()
       .from(executions)
@@ -107,9 +107,10 @@ async function handleInboundWebhook(
         executionId: execution.id,
         graphJson: version.graphJson,
         triggerPayload,
+        userId: workflow.userId,
       });
     } else {
-      void runExecution(execution.id, graph, plan, triggerPayload).catch(
+      void runExecution(execution.id, graph, plan, triggerPayload, workflow.userId).catch(
         (err: unknown) => {
           req.log.error({ err, executionId: execution.id }, "Unhandled webhook execution error");
         },

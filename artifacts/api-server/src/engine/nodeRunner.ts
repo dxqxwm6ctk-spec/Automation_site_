@@ -4,6 +4,7 @@ import { getNodeDefinition } from "@workspace/node-registry";
 import type { GraphNode } from "../lib/graph";
 import { emitNodeDone, emitNodeStart } from "../realtime/socket";
 import { decryptSecretData } from "../lib/crypto";
+import { persistVariable, resolveVariableTemplates } from "../lib/variables";
 
 /**
  * Resolves an http_request node's `auth.type === "credential"` into a
@@ -98,6 +99,8 @@ export async function runNode(
   node: GraphNode,
   input: unknown,
   signal: AbortSignal,
+  userId: string | null = null,
+  vars: Record<string, string> = {},
 ): Promise<NodeRunOutcome> {
   const definition = getNodeDefinition(node.type);
   if (!definition?.execute) {
@@ -111,7 +114,11 @@ export async function runNode(
   const maxAttempts = retrySource?.maxAttempts ?? 1;
   const backoffMs = retrySource?.backoffMs ?? 1_000;
 
-  let config = definition.configSchema.parse(node.config ?? {});
+  // `{{vars.KEY}}` placeholders in any string config field are substituted
+  // with the workflow owner's variables before schema validation, so every
+  // node type gets variable interpolation for free (Milestone 2 — Phase 2.2).
+  const rawConfig = resolveVariableTemplates(node.config ?? {}, vars);
+  let config = definition.configSchema.parse(rawConfig);
   if (node.type === "http_request") {
     config = await resolveHttpRequestConfig(config);
   }
@@ -148,7 +155,7 @@ export async function runNode(
     }
 
     try {
-      const result = await definition.execute({ config, input, signal });
+      const result = await definition.execute({ config, input, signal, vars });
       const finishedAt = new Date();
       const durationMs = finishedAt.getTime() - startedAt.getTime();
       await db
@@ -161,6 +168,16 @@ export async function runNode(
         })
         .where(eq(executionLogs.id, log.id));
       emitNodeDone({ executionId, nodeKey: node.key, status: "success", durationMs, output: result.output });
+
+      // Set Variable's `persist: true` writes the resolved value into the
+      // owner's persisted variable store so future runs can read it back.
+      if (node.type === "set_variable" && (config as { persist?: boolean }).persist) {
+        const variableName = (config as { variableName?: string }).variableName ?? "result";
+        const output = result.output as Record<string, unknown> | null;
+        const value = output && typeof output === "object" ? output[variableName] : result.output;
+        await persistVariable(userId, variableName, value === undefined ? "" : String(value));
+      }
+
       return { output: result.output, branch: result.branch };
     } catch (err) {
       const finishedAt = new Date();

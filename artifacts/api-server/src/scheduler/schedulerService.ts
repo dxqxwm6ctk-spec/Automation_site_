@@ -13,7 +13,7 @@
  */
 import { CronExpressionParser } from "cron-parser";
 import { and, eq, isNull } from "drizzle-orm";
-import { db, executions, workflows, workflowVersions } from "@workspace/db";
+import { db, executions, schedules, workflows, workflowVersions } from "@workspace/db";
 import { graphSchema, type Graph } from "../lib/graph";
 import { buildExecutionPlan, GraphStructureError } from "../engine/graphBuilder";
 import { runExecution } from "../engine/executionEngine";
@@ -36,6 +36,11 @@ const jobs = new Map<string, ScheduledJob>();
 function msUntilNext(cronExpression: string, timezone: string): number {
   const it = CronExpressionParser.parse(cronExpression, { tz: timezone });
   return Math.max(it.next().toDate().getTime() - Date.now(), 1_000);
+}
+
+/** The absolute Date of the next cron tick — used to keep `schedules.nextRunAt` accurate. */
+function computeNextRun(cronExpression: string, timezone: string): Date {
+  return new Date(Date.now() + msUntilNext(cronExpression, timezone));
 }
 
 /** Fire a single scheduled execution for the workflow. */
@@ -90,9 +95,21 @@ async function fire(workflowId: string): Promise<void> {
     })
     .returning();
 
-  void runExecution(execution.id, graph, plan, null).catch((err: unknown) =>
+  void runExecution(execution.id, graph, plan, null, workflow.userId).catch((err: unknown) =>
     logger.error({ err, executionId: execution.id, workflowId }, "Scheduler: execution error"),
   );
+
+  // Keep the schedules row's lastRunAt/nextRunAt in sync with what actually
+  // fired, so the Schedules page reflects reality instead of going stale
+  // after the very first run.
+  const [scheduleRow] = await db.select().from(schedules).where(eq(schedules.workflowId, workflowId)).limit(1);
+  if (scheduleRow) {
+    const nextRunAt = computeNextRun(scheduleRow.cronExpression, scheduleRow.timezone);
+    await db
+      .update(schedules)
+      .set({ lastRunAt: new Date(), nextRunAt, updatedAt: new Date() })
+      .where(eq(schedules.id, scheduleRow.id));
+  }
 
   logger.info({ workflowId, executionId: execution.id }, "Scheduler: fired scheduled execution");
 }
@@ -146,38 +163,29 @@ export function unscheduleWorkflow(workflowId: string): void {
 }
 
 /**
- * Called once at server start-up.  Loads every active workflow that has a
- * `schedule_trigger` node and arms a timer for each.
+ * Called once at server start-up. Arms a timer for every active `schedules`
+ * row belonging to an active, non-deleted workflow.
+ *
+ * The `schedules` table (managed by the `/v1/schedules` CRUD routes) is the
+ * single source of truth for cron/timezone — this used to re-derive
+ * schedules by scanning each workflow's graph for a `schedule_trigger`
+ * node, which silently ignored any edits made through the Schedules page
+ * and would re-arm the *original* graph config on every restart.
  */
 export async function bootstrapScheduler(): Promise<void> {
-  const activeWorkflows = await db
-    .select({ id: workflows.id, activeVersionId: workflows.activeVersionId })
-    .from(workflows)
-    .where(and(eq(workflows.isActive, true), isNull(workflows.deletedAt)));
+  const activeSchedules = await db
+    .select({
+      workflowId: schedules.workflowId,
+      cronExpression: schedules.cronExpression,
+      timezone: schedules.timezone,
+    })
+    .from(schedules)
+    .innerJoin(workflows, eq(schedules.workflowId, workflows.id))
+    .where(and(eq(schedules.isActive, true), eq(workflows.isActive, true), isNull(workflows.deletedAt)));
 
   let count = 0;
-  for (const w of activeWorkflows) {
-    if (!w.activeVersionId) continue;
-
-    const [version] = await db
-      .select()
-      .from(workflowVersions)
-      .where(eq(workflowVersions.id, w.activeVersionId))
-      .limit(1);
-    if (!version) continue;
-
-    let graph: Graph;
-    try {
-      graph = graphSchema.parse(version.graphJson);
-    } catch {
-      continue;
-    }
-
-    const scheduleNode = graph.nodes.find((n) => n.type === "schedule_trigger");
-    if (!scheduleNode) continue;
-
-    const cfg = (scheduleNode.config ?? {}) as { cronExpression?: string; timezone?: string };
-    arm(w.id, cfg.cronExpression ?? "0 * * * *", cfg.timezone ?? "UTC");
+  for (const s of activeSchedules) {
+    arm(s.workflowId, s.cronExpression, s.timezone);
     count++;
   }
 

@@ -59,12 +59,19 @@ function toPublic(row: typeof schedules.$inferSelect) {
 
 router.get("/", async (req, res) => {
   const workflowId = typeof req.query["workflowId"] === "string" ? req.query["workflowId"] : undefined;
+  const userId = req.user!.id;
 
-  const rows = workflowId
-    ? await db.select().from(schedules).where(eq(schedules.workflowId, workflowId)).orderBy(schedules.createdAt)
-    : await db.select().from(schedules).orderBy(schedules.createdAt);
+  const conditions = [eq(workflows.userId, userId), isNull(workflows.deletedAt)];
+  if (workflowId) conditions.push(eq(schedules.workflowId, workflowId));
 
-  res.json({ schedules: rows.map(toPublic) });
+  const rows = await db
+    .select({ schedule: schedules })
+    .from(schedules)
+    .innerJoin(workflows, eq(schedules.workflowId, workflows.id))
+    .where(and(...conditions))
+    .orderBy(schedules.createdAt);
+
+  res.json({ schedules: rows.map((r) => toPublic(r.schedule)) });
 });
 
 // ─── POST /v1/schedules ───────────────────────────────────────────────────────
@@ -121,13 +128,20 @@ router.post("/", async (req, res) => {
 
 // ─── GET /v1/schedules/:scheduleId ───────────────────────────────────────────
 
-router.get("/:scheduleId", async (req, res) => {
+/** Loads a schedule row, throwing 404 unless it belongs to the authenticated user's workflow. */
+async function getOwnedScheduleOrThrow(scheduleId: string, userId: string) {
   const [row] = await db
-    .select()
+    .select({ schedule: schedules })
     .from(schedules)
-    .where(eq(schedules.id, req.params.scheduleId))
+    .innerJoin(workflows, eq(schedules.workflowId, workflows.id))
+    .where(and(eq(schedules.id, scheduleId), eq(workflows.userId, userId), isNull(workflows.deletedAt)))
     .limit(1);
-  if (!row) throw new AppError("NOT_FOUND", `Schedule ${req.params.scheduleId} not found`);
+  if (!row) throw new AppError("NOT_FOUND", `Schedule ${scheduleId} not found`);
+  return row.schedule;
+}
+
+router.get("/:scheduleId", async (req, res) => {
+  const row = await getOwnedScheduleOrThrow(req.params.scheduleId, req.user!.id);
   res.json({ schedule: toPublic(row) });
 });
 
@@ -141,13 +155,7 @@ const patchBody = z.object({
 
 router.patch("/:scheduleId", async (req, res) => {
   const body = patchBody.parse(req.body);
-
-  const [existing] = await db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.id, req.params.scheduleId))
-    .limit(1);
-  if (!existing) throw new AppError("NOT_FOUND", `Schedule ${req.params.scheduleId} not found`);
+  const existing = await getOwnedScheduleOrThrow(req.params.scheduleId, req.user!.id);
 
   const cronExpression = body.cronExpression ?? existing.cronExpression;
   const timezone = body.timezone ?? existing.timezone;
@@ -176,12 +184,7 @@ router.patch("/:scheduleId", async (req, res) => {
 // ─── DELETE /v1/schedules/:scheduleId ────────────────────────────────────────
 
 router.delete("/:scheduleId", async (req, res) => {
-  const [existing] = await db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.id, req.params.scheduleId))
-    .limit(1);
-  if (!existing) throw new AppError("NOT_FOUND", `Schedule ${req.params.scheduleId} not found`);
+  const existing = await getOwnedScheduleOrThrow(req.params.scheduleId, req.user!.id);
 
   unscheduleWorkflow(existing.workflowId);
   await db.delete(schedules).where(eq(schedules.id, req.params.scheduleId));

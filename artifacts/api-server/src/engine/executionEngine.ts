@@ -22,6 +22,7 @@ import type { Graph, GraphNode } from "../lib/graph";
 import type { ExecutionPlan } from "./graphBuilder";
 import { runNode } from "./nodeRunner";
 import { emitExecutionStarted, emitExecutionDone } from "../realtime/socket";
+import { loadUserVariables } from "../lib/variables";
 
 /** 5 minutes — the execution-level timeout backstop (docs/07-workflow-engine.md "Timeouts"). Individual node types may impose their own, shorter timeout (e.g. http_request); this is the ceiling for the whole run. */
 export const EXECUTION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -67,6 +68,8 @@ async function walkGraph(
   plan: ExecutionPlan,
   triggerPayload: unknown,
   controller: AbortController,
+  userId: string | null,
+  vars: Record<string, string>,
 ): Promise<Map<string, NodeOutcome>> {
   const { signal } = controller;
   const inFlight = new Map<string, Promise<NodeOutcome>>();
@@ -111,7 +114,7 @@ async function walkGraph(
 
     if (signal.aborted) throw signal.reason instanceof Error ? signal.reason : new Error("Execution aborted");
 
-    const result = await runNode(executionId, node, input, signal);
+    const result = await runNode(executionId, node, input, signal, userId, vars);
     return { status: "success", output: result.output, branch: result.branch };
   }
 
@@ -208,6 +211,7 @@ export async function runExecution(
   graph: Graph,
   plan: ExecutionPlan,
   triggerPayload: unknown,
+  userId: string | null = null,
 ): Promise<void> {
   const controller = new AbortController();
   activeControllers.set(executionId, controller);
@@ -224,7 +228,8 @@ export async function runExecution(
   }, EXECUTION_TIMEOUT_MS);
 
   try {
-    const outcomes = await walkGraph(executionId, plan, triggerPayload, controller);
+    const vars = await loadUserVariables(userId);
+    const outcomes = await walkGraph(executionId, plan, triggerPayload, controller, userId, vars);
     const finishedAt = new Date();
     const output = computeFinalOutput(plan, outcomes);
     await finalize(executionId, {

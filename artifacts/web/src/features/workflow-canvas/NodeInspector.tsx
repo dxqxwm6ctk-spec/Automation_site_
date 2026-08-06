@@ -9,6 +9,7 @@ import {
 } from "@workspace/node-registry";
 import { useListCredentials } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -987,7 +988,24 @@ function NodeInspectorContent({
               )}
               <p className="text-xs text-muted-foreground">
                 Result is merged onto the output as <code className="rounded bg-muted px-1">{`{...input, [name]: value}`}</code>.
+                Use <code className="rounded bg-muted px-1">$vars.KEY</code> to read a saved variable.
               </p>
+            </div>
+            <div className="flex items-start gap-2 pt-1">
+              <Checkbox
+                id="node-var-persist"
+                checked={Boolean(config.persist)}
+                onCheckedChange={(checked) => patchConfig({ persist: checked === true })}
+                data-testid="checkbox-set-variable-persist"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="node-var-persist" className="cursor-pointer font-normal">
+                  Save for future runs
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Also stores this value in your saved Variables, so other workflows and later runs can read it too.
+                </p>
+              </div>
             </div>
           </>
         )}

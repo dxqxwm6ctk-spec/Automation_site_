@@ -9,7 +9,7 @@
  */
 import { Router } from "express";
 import { z } from "zod/v4";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, variables } from "@workspace/db";
 import { AppError } from "../../lib/errors";
 import { requireAuth } from "../../middlewares/requireAuth";
@@ -32,10 +32,25 @@ function toPublic(row: typeof variables.$inferSelect) {
   };
 }
 
+/** Loads a variable row, throwing 404 unless it belongs to the authenticated user. */
+async function getOwnedVariableOrThrow(variableId: string, userId: string) {
+  const [row] = await db
+    .select()
+    .from(variables)
+    .where(and(eq(variables.id, variableId), eq(variables.userId, userId)))
+    .limit(1);
+  if (!row) throw new AppError("NOT_FOUND", `Variable ${variableId} not found`);
+  return row;
+}
+
 // ─── GET /v1/variables ───────────────────────────────────────────────────────
 
-router.get("/", async (_req, res) => {
-  const rows = await db.select().from(variables).orderBy(variables.key);
+router.get("/", async (req, res) => {
+  const rows = await db
+    .select()
+    .from(variables)
+    .where(eq(variables.userId, req.user!.id))
+    .orderBy(variables.key);
   res.json({ variables: rows.map(toPublic) });
 });
 
@@ -53,11 +68,12 @@ const createBody = z.object({
 
 router.post("/", async (req, res) => {
   const body = createBody.parse(req.body);
+  const userId = req.user!.id;
 
   const [existing] = await db
     .select({ id: variables.id })
     .from(variables)
-    .where(eq(variables.key, body.key))
+    .where(and(eq(variables.key, body.key), eq(variables.userId, userId)))
     .limit(1);
   if (existing) {
     throw new AppError("CONFLICT", `A variable with key "${body.key}" already exists`);
@@ -65,7 +81,13 @@ router.post("/", async (req, res) => {
 
   const [row] = await db
     .insert(variables)
-    .values({ key: body.key, value: body.value, isSecret: body.isSecret, description: body.description ?? null })
+    .values({
+      userId,
+      key: body.key,
+      value: body.value,
+      isSecret: body.isSecret,
+      description: body.description ?? null,
+    })
     .returning();
 
   res.status(201).json({ variable: toPublic(row) });
@@ -74,12 +96,7 @@ router.post("/", async (req, res) => {
 // ─── GET /v1/variables/:variableId ───────────────────────────────────────────
 
 router.get("/:variableId", async (req, res) => {
-  const [row] = await db
-    .select()
-    .from(variables)
-    .where(eq(variables.id, req.params.variableId))
-    .limit(1);
-  if (!row) throw new AppError("NOT_FOUND", `Variable ${req.params.variableId} not found`);
+  const row = await getOwnedVariableOrThrow(req.params.variableId, req.user!.id);
   res.json({ variable: toPublic(row) });
 });
 
@@ -93,13 +110,7 @@ const patchBody = z.object({
 
 router.patch("/:variableId", async (req, res) => {
   const body = patchBody.parse(req.body);
-
-  const [existing] = await db
-    .select()
-    .from(variables)
-    .where(eq(variables.id, req.params.variableId))
-    .limit(1);
-  if (!existing) throw new AppError("NOT_FOUND", `Variable ${req.params.variableId} not found`);
+  await getOwnedVariableOrThrow(req.params.variableId, req.user!.id);
 
   const updates: Partial<typeof variables.$inferInsert> = { updatedAt: new Date() };
   if (body.value !== undefined) updates.value = body.value;
@@ -118,12 +129,7 @@ router.patch("/:variableId", async (req, res) => {
 // ─── DELETE /v1/variables/:variableId ────────────────────────────────────────
 
 router.delete("/:variableId", async (req, res) => {
-  const [existing] = await db
-    .select({ id: variables.id })
-    .from(variables)
-    .where(eq(variables.id, req.params.variableId))
-    .limit(1);
-  if (!existing) throw new AppError("NOT_FOUND", `Variable ${req.params.variableId} not found`);
+  await getOwnedVariableOrThrow(req.params.variableId, req.user!.id);
 
   await db.delete(variables).where(eq(variables.id, req.params.variableId));
   res.status(204).send();

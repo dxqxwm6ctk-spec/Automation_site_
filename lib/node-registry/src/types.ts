@@ -67,6 +67,16 @@ export interface NodeExecutionContext<TConfig = Record<string, unknown>> {
    * promptly; synchronous nodes can ignore it.
    */
   signal: AbortSignal;
+  /**
+   * The workflow owner's variables (Milestone 2 — Phase 2.2), keyed by
+   * variable name. Populated by the api-server before execution; empty
+   * object for callers that don't load a variable store (e.g. tests).
+   * String `{{vars.KEY}}` placeholders in `config` are already substituted
+   * before a node runs, so most nodes never need to read this directly —
+   * it's here for nodes (like Set Variable) that evaluate an expression and
+   * want `$vars` available alongside `$input`.
+   */
+  vars: Record<string, string>;
 }
 
 /**

@@ -414,9 +414,10 @@ router.post("/:workflowId/execute", async (req, res) => {
       executionId: execution.id,
       graphJson: version.graphJson,
       triggerPayload: body.triggerPayload ?? null,
+      userId: workflow.userId,
     });
   } else {
-    void runExecution(execution.id, graph, plan, body.triggerPayload).catch((err: unknown) => {
+    void runExecution(execution.id, graph, plan, body.triggerPayload, workflow.userId).catch((err: unknown) => {
       req.log.error({ err, executionId: execution.id }, "Unhandled execution engine error");
     });
   }
